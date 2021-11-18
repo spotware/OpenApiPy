@@ -1,0 +1,38 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31912.275
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{32C9BB22-6BC3-4391-A817-5EAD56172851}"
+EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "OpenApiPy", "src\SpotwareOpenApiPy\OpenApiPy.pyproj", "{7CA4CC19-9B50-4C79-B738-72478469DF99}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{E8327950-36EB-4AD8-B8C9-AF4CE3AB66D0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{88727D1D-3FC3-42FB-91A2-B2998A17B856}"
+	ProjectSection(SolutionItems) = preProject
+		LICENSE = LICENSE
+		pyproject.toml = pyproject.toml
+		README.md = README.md
+		setup.cfg = setup.cfg
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7CA4CC19-9B50-4C79-B738-72478469DF99}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CA4CC19-9B50-4C79-B738-72478469DF99}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7CA4CC19-9B50-4C79-B738-72478469DF99} = {32C9BB22-6BC3-4391-A817-5EAD56172851}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {08B46226-26AC-4AA6-B513-6665F9AC94AC}
+	EndGlobalSection
+EndGlobal
