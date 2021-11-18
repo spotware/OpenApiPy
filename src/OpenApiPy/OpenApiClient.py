@@ -1,9 +1,6 @@
 #! /usr/bin/python3.9
 
 import sys
-
-sys.path.append("./messages")
-
 from messages.OpenApiCommonModelMessages_pb2 import *
 from messages.OpenApiCommonMessages_pb2 import *
 from messages.OpenApiMessages_pb2 import *

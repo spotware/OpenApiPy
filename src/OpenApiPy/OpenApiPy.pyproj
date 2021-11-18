@@ -6,8 +6,7 @@
     <ProjectHome>
     </ProjectHome>
     <StartupFile>OpenApiClient.py</StartupFile>
-    <SearchPath>
-    </SearchPath>
+    <SearchPath>messages</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>OpenApiPy</Name>
