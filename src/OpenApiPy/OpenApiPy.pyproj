@@ -30,6 +30,8 @@
     <Compile Include=".\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="protobuf.py" />
+    <Compile Include="protocol.py" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="messages\" />
