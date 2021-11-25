@@ -1,10 +1,11 @@
+from twisted.internet.defer import timeout
 from twisted.internet.protocol import Factory
 from twisted.internet.endpoints import clientFromString
 from twisted.application.internet import ClientService
-from twisted.internet import reactor
 from protocol import Protocol
 from protobuf import Protobuf
-
+import threading
+from twisted.internet import reactor
 
 class Client(ClientService):
     EVENT_CONNECT_NAME = "connect"
@@ -38,28 +39,32 @@ class Client(ClientService):
             return p
 
     def __init__(self, host, port, retryPolicy=None, clock=None, prepareConnection=None):
-        endpoint = clientFromString(reactor, f"ssl:{host}:{port}")
+        self._runningReactor = reactor
+        endpoint = clientFromString(self._runningReactor, f"ssl:{host}:{port}")
         factory = Client.Factory.forProtocol(Client.Protocol, client=self)
         super().__init__(endpoint, factory, retryPolicy=retryPolicy, clock=clock, prepareConnection=prepareConnection)
 
     def start(self, timeout=None):
-        self.startService()
-
-        if timeout:
-            reactor.callLater(timeout, self.stop)
-
-        reactor.run()
+        def run(timeout):
+            self.startService()
+            if timeout:
+                self._runningReactor.callLater(timeout, self.stop)
+            self._runningReactor.run(installSignalHandlers=False)
+        self._reactorThread = threading.Thread(target=run,args=(timeout,))
+        self._reactorThread.start()
 
     def stop(self):
         self.stopService()
-        if reactor.running:
-            reactor.stop()
+        if self._runningReactor.running:
+            self._runningReactor.stop()
 
     def connect(self):
         self.exec_events(self.EVENT_CONNECT_NAME)
 
     def disconnect(self):
         self.exec_events(self.EVENT_DISCONNECT_NAME)
+
+    _responseCallbacks = dict()
 
     def receive(self, message):
         payload = Protobuf.extract(message)
@@ -73,9 +78,20 @@ class Client(ClientService):
 
         self.exec_events(self.EVENT_MESSAGE_NAME, **kargs)
 
-    def emit(self, message, msgid=None, **params):
+        if (message.clientMsgId is not None and message.clientMsgId in self._responseCallbacks):
+            responseCallback = self._responseCallbacks[message.clientMsgId]
+            self._responseCallbacks.pop(message.clientMsgId)
+            responseCallback(message)
+
+    def send(self, message, msgid=None, responseCallback=None, **params):
         if type(message) in [str, int]:
             message = Protobuf.get(message, **params)
+
+        if msgid is None and responseCallback is not None:
+            msgid = str(id(responseCallback))
+
+        if (msgid is not None):
+            self._responseCallbacks[msgid] = responseCallback
 
         def protocol_send(protocol):
             protocol.send(message, msgid=msgid)
@@ -132,7 +148,10 @@ if __name__ == "__main__":
 
     @c.event
     def connect():
-        c.emit("VersionReq")
+        c.send("VersionReq", responseCallback=callback)
+
+    def callback(message):
+        print("Called back: ", message)
 
     @c.message(msgtype="VersionRes")
     def version(msg, payload, version, **kargs):
