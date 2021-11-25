@@ -44,14 +44,17 @@ class Client(ClientService):
         factory = Client.Factory.forProtocol(Client.Protocol, client=self)
         super().__init__(endpoint, factory, retryPolicy=retryPolicy, clock=clock, prepareConnection=prepareConnection)
 
-    def start(self, timeout=None):
+    def start(self, timeout=None, blocking=True):
         def run(timeout):
             self.startService()
             if timeout:
                 self._runningReactor.callLater(timeout, self.stop)
             self._runningReactor.run(installSignalHandlers=False)
-        self._reactorThread = threading.Thread(target=run,args=(timeout,))
-        self._reactorThread.start()
+        if blocking:
+            run(timeout)
+        else:
+            self._reactorThread = threading.Thread(target=run,args=(timeout,))
+            self._reactorThread.start()
 
     def stop(self):
         self.stopService()
@@ -81,7 +84,7 @@ class Client(ClientService):
         if (message.clientMsgId is not None and message.clientMsgId in self._responseCallbacks):
             responseCallback = self._responseCallbacks[message.clientMsgId]
             self._responseCallbacks.pop(message.clientMsgId)
-            responseCallback(message)
+            responseCallback(**kargs)
 
     def send(self, message, msgid=None, responseCallback=None, **params):
         if type(message) in [str, int]:
@@ -150,12 +153,13 @@ if __name__ == "__main__":
     def connect():
         c.send("VersionReq", responseCallback=callback)
 
-    def callback(message):
-        print("Called back: ", message)
+    def callback(msg, payload, version, **kargs):
+        print("Called back Server version: ", version)
 
     @c.message(msgtype="VersionRes")
     def version(msg, payload, version, **kargs):
-        print("Server version: ", version)
+        print("Event Triggered Server version: ", version)
         c.stop()
 
-    c.start(timeout=5) # optional timeout in seconds
+    # Set blocking to false if you don't want to block, client will use another thread
+    c.start(timeout=5, blocking=False) # optional timeout in seconds
