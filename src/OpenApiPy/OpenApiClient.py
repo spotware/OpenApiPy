@@ -5,13 +5,9 @@ from twisted.application.internet import ClientService
 from protocol import Protocol
 from protobuf import Protobuf
 import threading
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 
 class Client(ClientService):
-    EVENT_CONNECT_NAME = "connect"
-    EVENT_DISCONNECT_NAME = "disconnect"
-    EVENT_MESSAGE_NAME = "message"
-
     class Protocol(Protocol):
         client = None
 
@@ -43,6 +39,9 @@ class Client(ClientService):
         endpoint = clientFromString(self._runningReactor, f"ssl:{host}:{port}")
         factory = Client.Factory.forProtocol(Client.Protocol, client=self)
         super().__init__(endpoint, factory, retryPolicy=retryPolicy, clock=clock, prepareConnection=prepareConnection)
+        self._events = dict()
+        self.connected = defer.Deferred()
+        self.disconnected = defer.Deferred()
 
     def start(self, timeout=None, blocking=True):
         def run(timeout):
@@ -62,12 +61,11 @@ class Client(ClientService):
             self._runningReactor.stop()
 
     def connect(self):
-        self.exec_events(self.EVENT_CONNECT_NAME)
+        self._responseDeferreds = dict()
+        self.connected.callback(self)
 
     def disconnect(self):
-        self.exec_events(self.EVENT_DISCONNECT_NAME)
-
-    _responseCallbacks = dict()
+        self.disconnected.callback(self)
 
     def receive(self, message):
         payload = Protobuf.extract(message)
@@ -79,87 +77,57 @@ class Client(ClientService):
         if "ctidTraderAccountId" in kargs:
             kargs["ctid"] = payload.ctidTraderAccountId
 
-        self.exec_events(self.EVENT_MESSAGE_NAME, **kargs)
+        if (message.clientMsgId is not None and message.clientMsgId in self._responseDeferreds):
+            responseDeferred = self._responseDeferreds[message.clientMsgId]
+            self._responseDeferreds.pop(message.clientMsgId)
+            responseDeferred.callback(kargs)
 
-        if (message.clientMsgId is not None and message.clientMsgId in self._responseCallbacks):
-            responseCallback = self._responseCallbacks[message.clientMsgId]
-            self._responseCallbacks.pop(message.clientMsgId)
-            responseCallback(**kargs)
-
-    def send(self, message, msgid=None, responseCallback=None, **params):
+    def send(self, message, msgId=None, responseTimeoutInSeconds=2, **params):
         if type(message) in [str, int]:
             message = Protobuf.get(message, **params)
 
-        if msgid is None and responseCallback is not None:
-            msgid = str(id(responseCallback))
+        responseDeferred = defer.Deferred()
+    
+        if msgId is None:
+            msgId = str(id(responseDeferred))
 
-        if (msgid is not None):
-            self._responseCallbacks[msgid] = responseCallback
+        if msgId is not None:
+            self._responseDeferreds[msgId] = responseDeferred
 
-        def protocol_send(protocol):
-            protocol.send(message, msgid=msgid)
+        responseDeferred.addTimeout(responseTimeoutInSeconds, self._runningReactor, onTimeoutCancel=lambda result, timeout: self._onResponseTimeout(msgId))
 
-        con = self.whenConnected()
-        con.addCallback(protocol_send)
-        return con
+        con = self.whenConnected(failAfterFailures=1)
+        con.addCallback(lambda protocol: protocol.send(message, msgid=msgId))
 
-    _events = dict()
+        return responseDeferred
 
-    def event(self, name_or_func=None, **filters):
-        if not self._events:  # lazy create
-            for e in [self.EVENT_CONNECT_NAME,
-                      self.EVENT_DISCONNECT_NAME, self.EVENT_MESSAGE_NAME]:
-                self._events[e] = []
-
-        if callable(name_or_func):  # callable append
-            name = name_or_func.__name__
-            self._events[name].append(name_or_func)
-            return name_or_func
-
-        def decorate(func):  # decorate with args
-            evname = name_or_func
-
-            from functools import wraps
-
-            @wraps(func)
-            def func_wrap(*args, **kwargs):
-                for k, v in filters.items():
-                    if k not in kwargs or kwargs[k] != v:
-                        return
-                func(*args, **kwargs)
-
-            self._events[evname].append(func_wrap)
-            return func
-
-        return decorate
-
-    def message(self, **filters):
-        if 'msgtype' in filters and type(filters['msgtype']) in [str, int]:
-            filters['msgtype'] = Protobuf.get_type(filters['msgtype'])
-
-        return self.event(self.EVENT_MESSAGE_NAME, **filters)
-
-    def exec_events(self, name, *args, **kwargs):
-        if name not in self._events:
-            return
-
-        for f in self._events[name]:
-            f(*args, **kwargs)
+    def _onResponseTimeout(self, msgId):
+        if (msgId is not None and msgId in self._responseDeferreds):
+            self._responseDeferreds.pop(msgId)
+            raise TimeoutError()
 
 if __name__ == "__main__":
     c = Client("demo.ctraderapi.com", 5035) # Demo connection
 
-    @c.event
-    def connect():
-        c.send("VersionReq", responseCallback=callback)
+    def connected(result):
+        print("connected")
+        deferred = c.send("VersionReq")
+        deferred.addCallback(onResponse)
+        deferred.addErrback(onError)
 
-    def callback(msg, payload, version, **kargs):
-        print("Called back Server version: ", version)
+    c.connected.addCallback(connected)
 
-    @c.message(msgtype="VersionRes")
-    def version(msg, payload, version, **kargs):
-        print("Event Triggered Server version: ", version)
-        c.stop()
+    def disconnected(result):
+        print("disconnected")
 
-    # Set blocking to false if you don't want to block, client will use another thread
-    c.start(timeout=5, blocking=False) # optional timeout in seconds
+    c.disconnected.addCallback(disconnected)
+
+    def onResponse(result):
+        print("Called back Server version: ", result)
+
+    def onError(failure):
+        print("Failed")
+
+    # Set blocking to false if you don't want to block
+    # client will use another thread to run its event loop when blocking is set to false
+    c.start(timeout=6, blocking=False) # optional timeout in seconds
