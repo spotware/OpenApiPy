@@ -5,7 +5,7 @@
     <ProjectGuid>7ca4cc19-9b50-4c79-b738-72478469df99</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>OpenApiClient.py</StartupFile>
+    <StartupFile>openApiClient.py</StartupFile>
     <SearchPath>messages</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
@@ -25,8 +25,9 @@
     <Compile Include=".\messages\OpenApiCommonModelMessages_pb2.py" />
     <Compile Include=".\messages\OpenApiMessages_pb2.py" />
     <Compile Include=".\messages\OpenApiModelMessages_pb2.py" />
+    <Compile Include="clientProtocolFactory.py" />
     <Compile Include="messages\__init__.py" />
-    <Compile Include="OpenApiClient.py" />
+    <Compile Include="openApiClient.py" />
     <Compile Include=".\__init__.py">
       <SubType>Code</SubType>
     </Compile>

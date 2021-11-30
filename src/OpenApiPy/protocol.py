@@ -8,7 +8,7 @@ from messages.OpenApiMessages_pb2 import *
 from messages.OpenApiModelMessages_pb2 import *
 
 class Protocol(Int32StringReceiver):
-
+    client = None
     MAX_LENGTH = sys.maxsize // 2
 
     _rps_limit = 5
@@ -22,11 +22,13 @@ class Protocol(Int32StringReceiver):
         if not self._send_task:
             self._send_task = task.LoopingCall(self._sendStrings)
         self._send_task.start(self._send_task_interval)
+        self.client.connect()
 
     def connectionLost(self, reason):
         super().connectionLost(reason)
         if self._send_task.running:
             self._send_task.stop()
+        self.client.disconnect()
 
     def heartbeat(self):
         self.send(ProtoHeartbeatEvent(), True)
@@ -71,4 +73,4 @@ class Protocol(Int32StringReceiver):
         return data
 
     def receive(self, message):
-        pass  # pragma: no cover
+        self.client.receive(message)
