@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 class Protobuf(object):
     _protos = dict()
     _names = dict()

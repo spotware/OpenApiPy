@@ -17,6 +17,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		setup.cfg = setup.cfg
 	EndProjectSection
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "OpenApiPyTest", "tests\OpenApiPyTest\OpenApiPyTest.pyproj", "{37A7DE60-98BA-4527-A403-EC7884BCDF79}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,12 +27,15 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{7CA4CC19-9B50-4C79-B738-72478469DF99}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7CA4CC19-9B50-4C79-B738-72478469DF99}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37A7DE60-98BA-4527-A403-EC7884BCDF79}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37A7DE60-98BA-4527-A403-EC7884BCDF79}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7CA4CC19-9B50-4C79-B738-72478469DF99} = {32C9BB22-6BC3-4391-A817-5EAD56172851}
+		{37A7DE60-98BA-4527-A403-EC7884BCDF79} = {E8327950-36EB-4AD8-B8C9-AF4CE3AB66D0}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {08B46226-26AC-4AA6-B513-6665F9AC94AC}

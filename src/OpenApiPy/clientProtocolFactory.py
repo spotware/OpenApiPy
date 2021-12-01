@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from twisted.internet.protocol import ClientFactory
 
 class ClientProtocolFactory(ClientFactory):

@@ -2,15 +2,14 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>7ca4cc19-9b50-4c79-b738-72478469df99</ProjectGuid>
-    <ProjectHome>
-    </ProjectHome>
-    <StartupFile>client.py</StartupFile>
-    <SearchPath>messages</SearchPath>
+    <ProjectGuid>37a7de60-98ba-4527-a403-ec7884bcdf79</ProjectGuid>
+    <ProjectHome>.</ProjectHome>
+    <StartupFile>clientTest.py</StartupFile>
+    <SearchPath>..\..\src\OpenApiPy;..\..\src\OpenApiPy\messages</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
-    <Name>OpenApiPy</Name>
-    <RootNamespace>SpotwareOpenApiPy</RootNamespace>
+    <Name>OpenApiPyTest</Name>
+    <RootNamespace>OpenApiPyTest</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -21,21 +20,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include=".\messages\OpenApiCommonMessages_pb2.py" />
-    <Compile Include=".\messages\OpenApiCommonModelMessages_pb2.py" />
-    <Compile Include=".\messages\OpenApiMessages_pb2.py" />
-    <Compile Include=".\messages\OpenApiModelMessages_pb2.py" />
-    <Compile Include="clientProtocolFactory.py" />
-    <Compile Include="messages\__init__.py" />
-    <Compile Include="client.py" />
-    <Compile Include=".\__init__.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="protobuf.py" />
-    <Compile Include="protocol.py" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="messages\" />
+    <Compile Include="clientTest.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

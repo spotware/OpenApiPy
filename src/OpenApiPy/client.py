@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from twisted.internet.endpoints import clientFromString
 from twisted.application.internet import ClientService
 from protocol import Protocol
@@ -19,7 +21,7 @@ class Client(ClientService):
             self.startService()
             if timeout:
                 self._runningReactor.callLater(timeout, self.stop)
-            self._runningReactor.run(installSignalHandlers=False)
+            self._runningReactor.run(installSignalHandlers=blocking)
         if blocking:
             run(timeout)
         else:
@@ -27,7 +29,8 @@ class Client(ClientService):
             self._reactorThread.start()
 
     def stop(self):
-        self.stopService()
+        if self.running:
+            self.stopService()
         if self._runningReactor.running:
             self._runningReactor.stop()
 
@@ -74,35 +77,3 @@ class Client(ClientService):
         if (msgId is not None and msgId in self._responseDeferreds):
             self._responseDeferreds.pop(msgId)
             raise TimeoutError()
-
-def main():
-    c = Client("demo.ctraderapi.com", 5035) # Demo connection
-    # Callback for getting response of VersionReq
-    def onVersionReqResponse(message):
-        print("onVersionReqResponse: ", message)
-    # Callback for getting error of VersionReq 
-    def onVersionReqError(failure):
-        print("onVersionReqError: ", failure)
-    # Callback for client connection
-    def connected(result):
-        print("connected")
-        # Client send method will return a Twisted deferred
-        deferred = c.send("VersionReq")
-        # Setting the deferred callback and errback
-        deferred.addCallbacks(onVersionReqResponse, onVersionReqError)
-    # Callback for client disconnection
-    def disconnected(result):
-        print("disconnected")
-    # Callback for receiving all messages
-    def onMessageReceived(message):
-        print("Message received: ", message)
-    # Setting optional client callbacks
-    c.setConnectedCallback(connected)
-    c.setDisconnectedCallback(disconnected)
-    c.setMessageReceivedCallback(onMessageReceived)
-    # Set blocking to false if you don't want to block
-    # client will use another thread to run its event loop when blocking is set to false
-    c.start(timeout=6, blocking=False) # optional timeout in seconds
-
-if __name__ == "__main__":
-    main()
