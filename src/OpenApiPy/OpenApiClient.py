@@ -56,7 +56,7 @@ class Client(ClientService):
             msgId = str(id(responseDeferred))
         if msgId is not None:
             self._responseDeferreds[msgId] = responseDeferred
-        responseDeferred.addTimeout(responseTimeoutInSeconds, self._runningReactor, onTimeoutCancel=lambda result, timeout: self._onResponseTimeout(msgId, timeout))
+        responseDeferred.addTimeout(responseTimeoutInSeconds, self._runningReactor, onTimeoutCancel=lambda result, timeout: self._onResponseTimeout(msgId))
         con = self.whenConnected(failAfterFailures=1)
         con.addCallbacks(lambda protocol: protocol.send(message, msgid=msgId), lambda failure: responseDeferred.errback(failure))
         return responseDeferred
@@ -70,12 +70,12 @@ class Client(ClientService):
     def setMessageReceivedCallback(self, callback):
         self.messageReceivedCallback = callback
 
-    def _onResponseTimeout(self, msgId, timeout):
+    def _onResponseTimeout(self, msgId):
         if (msgId is not None and msgId in self._responseDeferreds):
             self._responseDeferreds.pop(msgId)
             raise TimeoutError()
 
-if __name__ == "__main__":
+def main():
     c = Client("demo.ctraderapi.com", 5035) # Demo connection
     # Callback for getting response of VersionReq
     def onVersionReqResponse(message):
@@ -103,3 +103,6 @@ if __name__ == "__main__":
     # Set blocking to false if you don't want to block
     # client will use another thread to run its event loop when blocking is set to false
     c.start(timeout=6, blocking=False) # optional timeout in seconds
+
+if __name__ == "__main__":
+    main()

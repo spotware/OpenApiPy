@@ -1,6 +1,6 @@
-from twisted.internet.protocol import Factory
+from twisted.internet.protocol import ClientFactory
 
-class ClientProtocolFactory(Factory):
+class ClientProtocolFactory(ClientFactory):
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.client = kwargs['client']
