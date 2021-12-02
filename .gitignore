@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 /dist
 /src/OpenApiPy_Spotware.egg-info
+/tests/OpenApiPyTest/_trial_temp
+/_trial_temp

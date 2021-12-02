@@ -10,12 +10,7 @@ from messages.OpenApiMessages_pb2 import *
 from messages.OpenApiModelMessages_pb2 import *
 
 class Protocol(Int32StringReceiver):
-    client = None
-    MAX_LENGTH = sys.maxsize // 2
-
-    _rps_limit = 5
     _send_queue = deque([])
-    _send_task_interval = 1
     _send_task = None
 
     def connectionMade(self):
@@ -23,14 +18,13 @@ class Protocol(Int32StringReceiver):
 
         if not self._send_task:
             self._send_task = task.LoopingCall(self._sendStrings)
-        self._send_task.start(self._send_task_interval)
-        self.client.connect()
+        self._send_task.start(1)
 
     def connectionLost(self, reason):
         super().connectionLost(reason)
         if self._send_task.running:
             self._send_task.stop()
-        self.client.disconnect()
+        self.factory.disconnected()
 
     def heartbeat(self):
         self.send(ProtoHeartbeatEvent(), True)
@@ -61,7 +55,7 @@ class Protocol(Int32StringReceiver):
         if not size:
             return  # pragma: no cover
 
-        for _ in range(min(size, self._rps_limit)):
+        for _ in range(min(size, self.factory.numberOfMessagesToSendPerSecond)):
             self.sendString(self._send_queue.popleft())
 
     def stringReceived(self, data):
@@ -70,9 +64,5 @@ class Protocol(Int32StringReceiver):
 
         if msg.payloadType == ProtoHeartbeatEvent().payloadType:
             self.heartbeat()
-
-        self.receive(msg)
+        self.factory.received(msg)
         return data
-
-    def receive(self, message):
-        self.client.receive(message)

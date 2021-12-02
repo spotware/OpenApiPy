@@ -5,7 +5,8 @@
     <ProjectGuid>37a7de60-98ba-4527-a403-ec7884bcdf79</ProjectGuid>
     <ProjectHome>.</ProjectHome>
     <StartupFile>clientTest.py</StartupFile>
-    <SearchPath>..\..\src\OpenApiPy;..\..\src\OpenApiPy\messages</SearchPath>
+    <SearchPath>
+    </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>OpenApiPyTest</Name>
@@ -21,6 +22,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="clientTest.py" />
+    <Compile Include="__init__.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
