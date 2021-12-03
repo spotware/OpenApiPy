@@ -53,7 +53,7 @@ class Protocol(Int32StringReceiver):
         size = len(self._send_queue)
 
         if not size:
-            return  # pragma: no cover
+            return
 
         for _ in range(min(size, self.factory.numberOfMessagesToSendPerSecond)):
             self.sendString(self._send_queue.popleft())

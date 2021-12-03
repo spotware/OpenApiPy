@@ -5,7 +5,6 @@ from twisted.application.internet import ClientService
 from protocol import Protocol
 from protobuf import Protobuf
 from clientProtocolFactory import ClientProtocolFactory
-import threading
 from twisted.internet import reactor, defer
 
 class Client(ClientService):
@@ -19,27 +18,17 @@ class Client(ClientService):
         self._responseDeferreds = dict()
         self.isConnected = False
 
-    def _run(self, timeout, installSignalHandlers):
-        ClientService.startService(self)
+    def startService(self):
+        if self.running:
+            return
         deferredWhenConnected = self.whenConnected()
         deferredWhenConnected.addCallbacks(self._connected)
         deferredWhenConnected.addErrback(self._connectFailed)
-        if timeout:
-            self._runningReactor.callLater(timeout, self.stop)
-        self._runningReactor.run(installSignalHandlers=installSignalHandlers)
-
-    def startService(self, timeout=None, blocking=True):
-        if blocking:
-            self._run(timeout, blocking)
-        else:
-            self._reactorThread = threading.Thread(target=self._run,args=(timeout, blocking))
-            self._reactorThread.start()
+        ClientService.startService(self)
 
     def stopService(self):
         if self.running and self.isConnected:
             ClientService.stopService(self)
-        if self._runningReactor.running:
-            self._runningReactor.stop()
 
     def _connected(self, protocol):
         self.isConnected = True
@@ -75,8 +64,8 @@ class Client(ClientService):
             self._responseDeferreds[msgId] = responseDeferred
         responseDeferred.addErrback(lambda failure: self._onResponseFailure(failure, msgId))
         responseDeferred.addTimeout(responseTimeoutInSeconds, self._runningReactor)
-        con = self.whenConnected(failAfterFailures=1)
-        #con.addCallbacks(lambda protocol: protocol.send(message, msgid=msgId), lambda failure: responseDeferred.errback(failure))
+        protocolDiferred = self.whenConnected(failAfterFailures=1)
+        protocolDiferred.addCallbacks(lambda protocol: protocol.send(message, msgid=msgId), responseDeferred.errback)
         return responseDeferred
 
     def setConnectedCallback(self, callback):
@@ -95,3 +84,34 @@ class Client(ClientService):
         if (msgId is not None and msgId in self._responseDeferreds):
             self._responseDeferreds.pop(msgId)
         return failure
+if __name__ == "__main__":
+    c = Client("demo.ctraderapi.com", 5035) # Demo connection
+    # Callback for getting response of VersionReq
+    def onVersionReqResponse(message):
+        print("onVersionReqResponse: ", message)
+        c.stopService()
+    # Callback for getting error of VersionReq 
+    def onVersionReqError(failure):
+        print("onVersionReqError: ", failure)
+        c.stopService()
+    # Callback for client connection
+    def connected(result):
+        print("connected")
+        # Client send method will return a Twisted deferred
+        #deferred = c.send("VersionReq")
+        # Setting the deferred callback and errback
+        #deferred.addCallbacks(onVersionReqResponse, onVersionReqError)
+    # Callback for client disconnection
+    def disconnected(result):
+        print("disconnected")
+    # Callback for receiving all messages
+    def onMessageReceived(message):
+        print("Message received: ", message)
+    # Setting optional client callbacks
+    c.setConnectedCallback(connected)
+    c.setDisconnectedCallback(disconnected)
+    c.setMessageReceivedCallback(onMessageReceived)
+    # Set blocking to false if you don't want to block
+    # client will use another thread to run its event loop when blocking is set to false
+    c.startService() # optional timeout in seconds
+    reactor.run()
