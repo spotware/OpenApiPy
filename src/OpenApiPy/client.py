@@ -84,34 +84,3 @@ class Client(ClientService):
         if (msgId is not None and msgId in self._responseDeferreds):
             self._responseDeferreds.pop(msgId)
         return failure
-if __name__ == "__main__":
-    c = Client("demo.ctraderapi.com", 5035) # Demo connection
-    # Callback for getting response of VersionReq
-    def onVersionReqResponse(message):
-        print("onVersionReqResponse: ", message)
-        c.stopService()
-    # Callback for getting error of VersionReq 
-    def onVersionReqError(failure):
-        print("onVersionReqError: ", failure)
-        c.stopService()
-    # Callback for client connection
-    def connected(result):
-        print("connected")
-        # Client send method will return a Twisted deferred
-        #deferred = c.send("VersionReq")
-        # Setting the deferred callback and errback
-        #deferred.addCallbacks(onVersionReqResponse, onVersionReqError)
-    # Callback for client disconnection
-    def disconnected(result):
-        print("disconnected")
-    # Callback for receiving all messages
-    def onMessageReceived(message):
-        print("Message received: ", message)
-    # Setting optional client callbacks
-    c.setConnectedCallback(connected)
-    c.setDisconnectedCallback(disconnected)
-    c.setMessageReceivedCallback(onMessageReceived)
-    # Set blocking to false if you don't want to block
-    # client will use another thread to run its event loop when blocking is set to false
-    c.startService() # optional timeout in seconds
-    reactor.run()
