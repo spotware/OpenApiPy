@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		setup.cfg = setup.cfg
 	EndProjectSection
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "ConsoleSample", "src\ConsoleSample\ConsoleSample.pyproj", "{C8326237-5228-4642-BD51-9BEB2427C4F7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,12 +25,15 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{7CA4CC19-9B50-4C79-B738-72478469DF99}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7CA4CC19-9B50-4C79-B738-72478469DF99}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8326237-5228-4642-BD51-9BEB2427C4F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8326237-5228-4642-BD51-9BEB2427C4F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7CA4CC19-9B50-4C79-B738-72478469DF99} = {32C9BB22-6BC3-4391-A817-5EAD56172851}
+		{C8326237-5228-4642-BD51-9BEB2427C4F7} = {32C9BB22-6BC3-4391-A817-5EAD56172851}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {08B46226-26AC-4AA6-B513-6665F9AC94AC}

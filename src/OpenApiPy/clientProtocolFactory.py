@@ -10,7 +10,9 @@ class ClientProtocolFactory(ClientFactory):
     def buildProtocol(self, addr):
         protocol = super().buildProtocol(addr)
         return protocol
-    def disconnected(self):
-        self.client._disconnected()
+    def connected(self, protocol):
+        self.client._connected(protocol)
+    def disconnected(self, reason):
+        self.client._disconnected(reason)
     def received(self, message):
         self.client._received(message)

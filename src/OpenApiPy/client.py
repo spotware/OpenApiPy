@@ -21,9 +21,6 @@ class Client(ClientService):
     def startService(self):
         if self.running:
             return
-        deferredWhenConnected = self.whenConnected()
-        deferredWhenConnected.addCallbacks(self._connected)
-        deferredWhenConnected.addErrback(self._connectFailed)
         ClientService.startService(self)
 
     def stopService(self):
@@ -33,18 +30,13 @@ class Client(ClientService):
     def _connected(self, protocol):
         self.isConnected = True
         if hasattr(self, "_connectedCallback"):
-            self._connectedCallback(self)
+            self._connectedCallback(protocol)
 
-    def _connectFailed(self, failure):
-        self.isConnected = False
-        if hasattr(self, "_connectFailedCallback"):
-            self._connectFailedCallback(self, failure)
-
-    def _disconnected(self):
+    def _disconnected(self, reason):
         self.isConnected = False
         self._responseDeferreds.clear()
         if hasattr(self, "_disconnectedCallback"):
-            self._disconnectedCallback(self)
+            self._disconnectedCallback(reason)
 
     def _received(self, message):
         if hasattr(self, "_messageReceivedCallback"):
@@ -54,25 +46,22 @@ class Client(ClientService):
             self._responseDeferreds.pop(message.clientMsgId)
             responseDeferred.callback(message)
 
-    def send(self, message, msgId=None, responseTimeoutInSeconds=2, **params):
+    def send(self, message, clientMsgId=None, responseTimeoutInSeconds=5, **params):
         if type(message) in [str, int]:
             message = Protobuf.get(message, **params)
         responseDeferred = defer.Deferred()
-        if msgId is None:
-            msgId = str(id(responseDeferred))
-        if msgId is not None:
-            self._responseDeferreds[msgId] = responseDeferred
-        responseDeferred.addErrback(lambda failure: self._onResponseFailure(failure, msgId))
+        if clientMsgId is None:
+            clientMsgId = str(id(responseDeferred))
+        if clientMsgId is not None:
+            self._responseDeferreds[clientMsgId] = responseDeferred
+        responseDeferred.addErrback(lambda failure: self._onResponseFailure(failure, clientMsgId))
         responseDeferred.addTimeout(responseTimeoutInSeconds, self._runningReactor)
         protocolDiferred = self.whenConnected(failAfterFailures=1)
-        protocolDiferred.addCallbacks(lambda protocol: protocol.send(message, msgid=msgId), responseDeferred.errback)
+        protocolDiferred.addCallbacks(lambda protocol: protocol.send(message, clientMsgId=clientMsgId), responseDeferred.errback)
         return responseDeferred
 
     def setConnectedCallback(self, callback):
         self._connectedCallback = callback
-
-    def setConnectFailedCallback(self, callback):
-        self._connectFailedCallback = callback
 
     def setDisconnectedCallback(self, callback):
         self._disconnectedCallback = callback
