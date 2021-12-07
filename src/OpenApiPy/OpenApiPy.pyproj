@@ -5,7 +5,8 @@
     <ProjectGuid>7ca4cc19-9b50-4c79-b738-72478469df99</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>client.py</StartupFile>
+    <StartupFile>
+    </StartupFile>
     <SearchPath>messages</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
