@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>c8326237-5228-4642-bd51-9beb2427c4f7</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>ConsoleSample.py</StartupFile>
+    <StartupFile>ConsoleSample-dev.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
