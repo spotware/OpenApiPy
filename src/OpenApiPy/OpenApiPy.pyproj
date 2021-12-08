@@ -27,7 +27,7 @@
     <Compile Include=".\messages\OpenApiMessages_pb2.py" />
     <Compile Include=".\messages\OpenApiModelMessages_pb2.py" />
     <Compile Include="auth.py" />
-    <Compile Include="clientProtocolFactory.py" />
+    <Compile Include="factory.py" />
     <Compile Include="endpoints.py" />
     <Compile Include="messages\__init__.py" />
     <Compile Include="client.py" />

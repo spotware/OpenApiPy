@@ -2,7 +2,7 @@
 
 from twisted.internet.protocol import ClientFactory
 
-class ClientProtocolFactory(ClientFactory):
+class Factory(ClientFactory):
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.client = kwargs['client']
