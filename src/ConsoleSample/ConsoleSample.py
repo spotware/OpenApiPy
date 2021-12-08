@@ -92,6 +92,9 @@ if __name__ == "__main__":
         print("ProtoOAReconcileReq clientMsgId")
         print("ProtoOAGetTrendbarsReq *weeks *period *symbolId clientMsgId")
         print("ProtoOAGetTickDataReq *days *type *symbolId clientMsgId")
+        print("NewMarketOrder *symbolId *tradeSide *volume clientMsgId")
+        print("NewLimitOrder *symbolId *tradeSide *volume *price clientMsgId")
+        print("NewStopOrder *symbolId *tradeSide *volume *price clientMsgId")
         reactor.callLater(3, callable=executeUserCommand)
 
     def setAccount(accountId):
@@ -198,6 +201,29 @@ if __name__ == "__main__":
         deferred = client.send(request, clientMsgId = clientMsgId)
         deferred.addErrback(onError)
 
+    def sendProtoOANewOrderReq(symbolId, orderType, tradeSide, volume, price = None, clientMsgId = None):
+        request = ProtoOANewOrderReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.symbolId = int(symbolId)
+        request.orderType = ProtoOAOrderType.Value(orderType.upper())
+        request.tradeSide = ProtoOATradeSide.Value(tradeSide.upper())
+        request.volume = int(volume) * 100
+        if request.orderType == ProtoOAOrderType.LIMIT:
+            request.limitPrice = float(price)
+        elif request.orderType == ProtoOAOrderType.STOP:
+            request.stopPrice = float(price)
+        deferred = client.send(request, clientMsgId = clientMsgId)
+        deferred.addErrback(onError)
+
+    def sendNewMarketOrder(symbolId, tradeSide, volume, clientMsgId = None):
+        sendProtoOANewOrderReq(symbolId, "MARKET", tradeSide, volume, clientMsgId = clientMsgId)
+
+    def sendNewLimitOrder(symbolId, tradeSide, volume, price, clientMsgId = None):
+        sendProtoOANewOrderReq(symbolId, "LIMIT", tradeSide, volume, price, clientMsgId)
+
+    def sendNewStopOrder(symbolId, tradeSide, volume, price, clientMsgId = None):
+        sendProtoOANewOrderReq(symbolId, "STOP", tradeSide, volume, price, clientMsgId)
+
     commands = {
         "help": showHelp,
         "setAccount": setAccount,
@@ -211,12 +237,15 @@ if __name__ == "__main__":
         "ProtoOASubscribeSpotsReq": sendProtoOASubscribeSpotsReq,
         "ProtoOAReconcileReq": sendProtoOAReconcileReq,
         "ProtoOAGetTrendbarsReq": sendProtoOAGetTrendbarsReq,
-        "ProtoOAGetTickDataReq": sendProtoOAGetTickDataReq}
+        "ProtoOAGetTickDataReq": sendProtoOAGetTickDataReq,
+        "NewMarketOrder": sendNewMarketOrder,
+        "NewLimitOrder": sendNewLimitOrder,
+        "NewStopOrder": sendNewStopOrder}
 
     def executeUserCommand():
         try:
             print("\n")
-            userInput = inputimeout("Command (ex help): ", timeout=17)
+            userInput = inputimeout("Command (ex help): ", timeout=18)
         except TimeoutOccurred:
             print("Command Input Timeout")
             reactor.callLater(3, callable=executeUserCommand)
