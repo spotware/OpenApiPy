@@ -95,6 +95,9 @@ if __name__ == "__main__":
         print("NewMarketOrder *symbolId *tradeSide *volume clientMsgId")
         print("NewLimitOrder *symbolId *tradeSide *volume *price clientMsgId")
         print("NewStopOrder *symbolId *tradeSide *volume *price clientMsgId")
+        print("ClosePosition *positionId *volume clientMsgId")
+        print("CancelOrder *orderId clientMsgId")
+
         reactor.callLater(3, callable=executeUserCommand)
 
     def setAccount(accountId):
@@ -224,6 +227,21 @@ if __name__ == "__main__":
     def sendNewStopOrder(symbolId, tradeSide, volume, price, clientMsgId = None):
         sendProtoOANewOrderReq(symbolId, "STOP", tradeSide, volume, price, clientMsgId)
 
+    def sendProtoOAClosePositionReq(positionId, volume, clientMsgId = None):
+        request = ProtoOAClosePositionReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.positionId = int(positionId)
+        request.volume = int(volume) * 100
+        deferred = client.send(request, clientMsgId = clientMsgId)
+        deferred.addErrback(onError)
+
+    def sendProtoOACancelOrderReq(orderId, clientMsgId = None):
+        request = ProtoOACancelOrderReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.orderId = int(orderId)
+        deferred = client.send(request, clientMsgId = clientMsgId)
+        deferred.addErrback(onError)
+
     commands = {
         "help": showHelp,
         "setAccount": setAccount,
@@ -240,7 +258,9 @@ if __name__ == "__main__":
         "ProtoOAGetTickDataReq": sendProtoOAGetTickDataReq,
         "NewMarketOrder": sendNewMarketOrder,
         "NewLimitOrder": sendNewLimitOrder,
-        "NewStopOrder": sendNewStopOrder}
+        "NewStopOrder": sendNewStopOrder,
+        "ClosePosition": sendProtoOAClosePositionReq,
+        "CancelOrder": sendProtoOACancelOrderReq}
 
     def executeUserCommand():
         try:
