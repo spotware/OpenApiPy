@@ -9,8 +9,9 @@ from messages.OpenApiCommonMessages_pb2 import *
 from messages.OpenApiMessages_pb2 import *
 from messages.OpenApiModelMessages_pb2 import *
 import datetime
-class Protocol(Int32StringReceiver):
-    MAX_LENGTH = 100000000
+
+class TcpProtocol(Int32StringReceiver):
+    MAX_LENGTH = 15000000
     _send_queue = deque([])
     _send_task = None
     _lastSendMessageTime = None

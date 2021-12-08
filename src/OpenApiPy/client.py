@@ -2,17 +2,17 @@
 
 from twisted.internet.endpoints import clientFromString
 from twisted.application.internet import ClientService
-from protocol import Protocol
+from OpenApiMessages_pb2 import ProtoOAGetTrendbarsReq
 from protobuf import Protobuf
 from clientProtocolFactory import ClientProtocolFactory
 from twisted.internet import reactor, defer
 
 class Client(ClientService):
-    def __init__(self, host, port, retryPolicy=None, clock=None, prepareConnection=None, numberOfMessagesToSendPerSecond=5):
+    def __init__(self, host, port, protocol, retryPolicy=None, clock=None, prepareConnection=None, numberOfMessagesToSendPerSecond=5):
         self._runningReactor = reactor
         self.numberOfMessagesToSendPerSecond = numberOfMessagesToSendPerSecond
         endpoint = clientFromString(self._runningReactor, f"ssl:{host}:{port}")
-        factory = ClientProtocolFactory.forProtocol(Protocol, client=self)
+        factory = ClientProtocolFactory.forProtocol(protocol, client=self)
         super().__init__(endpoint, factory, retryPolicy=retryPolicy, clock=clock, prepareConnection=prepareConnection)
         self._events = dict()
         self._responseDeferreds = dict()

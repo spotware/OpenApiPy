@@ -1,17 +1,20 @@
+#!/usr/bin/env python
+
 import sys
 sys.path.append('../OpenApiPy')
 sys.path.append('../OpenApiPy/messages')
 from client import Client
 from auth import Auth
 from protobuf import Protobuf
+from tcpProtocol import TcpProtocol
 from messages.OpenApiCommonModelMessages_pb2 import *
 from messages.OpenApiCommonMessages_pb2 import *
 from messages.OpenApiMessages_pb2 import *
 from messages.OpenApiModelMessages_pb2 import *
 from twisted.internet import reactor
-import threading
 from inputimeout import inputimeout, TimeoutOccurred
 import webbrowser
+import datetime
 
 if __name__ == "__main__":
     currentAccountId = None
@@ -44,7 +47,7 @@ if __name__ == "__main__":
     else:
         accessToken = input("Access Token: ")
 
-    client = Client(liveHost if hostType.lower() == "live" else demoHost, port) # Demo connection
+    client = Client(liveHost if hostType.lower() == "live" else demoHost, port, TcpProtocol)
     
     def connected(_): # Callback for client connection
         print("\nConnected")
@@ -87,6 +90,8 @@ if __name__ == "__main__":
         print("ProtoOATraderReq clientMsgId")
         print("ProtoOASubscribeSpotsReq *symbolId *timeInSeconds(Unsubscribes after this time) subscribeToSpotTimestamp(True/False) clientMsgId")
         print("ProtoOAReconcileReq clientMsgId")
+        print("ProtoOAGetTrendbarsReq *weeks *period *symbolId clientMsgId")
+        print("ProtoOAGetTickDataReq *days *type *symbolId clientMsgId")
         reactor.callLater(3, callable=executeUserCommand)
 
     def setAccount(accountId):
@@ -173,6 +178,26 @@ if __name__ == "__main__":
         deferred = client.send(request, clientMsgId = clientMsgId)
         deferred.addErrback(onError)
 
+    def sendProtoOAGetTrendbarsReq(weeks, period, symbolId, clientMsgId = None):
+        request = ProtoOAGetTrendbarsReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.period = ProtoOATrendbarPeriod.Value(period)
+        request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(weeks=int(weeks))).timestamp()) * 1000
+        request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
+        request.symbolId = int(symbolId)
+        deferred = client.send(request, clientMsgId = clientMsgId)
+        deferred.addErrback(onError)
+
+    def sendProtoOAGetTickDataReq(days, quoteType, symbolId, clientMsgId = None):
+        request = ProtoOAGetTickDataReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.type = ProtoOAQuoteType.Value(quoteType.upper())
+        request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(days=int(days))).timestamp()) * 1000
+        request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
+        request.symbolId = int(symbolId)
+        deferred = client.send(request, clientMsgId = clientMsgId)
+        deferred.addErrback(onError)
+
     commands = {
         "help": showHelp,
         "setAccount": setAccount,
@@ -184,7 +209,9 @@ if __name__ == "__main__":
         "ProtoOASymbolsListReq": sendProtoOASymbolsListReq,
         "ProtoOATraderReq": sendProtoOATraderReq,
         "ProtoOASubscribeSpotsReq": sendProtoOASubscribeSpotsReq,
-        "ProtoOAReconcileReq": sendProtoOAReconcileReq}
+        "ProtoOAReconcileReq": sendProtoOAReconcileReq,
+        "ProtoOAGetTrendbarsReq": sendProtoOAGetTrendbarsReq,
+        "ProtoOAGetTickDataReq": sendProtoOAGetTickDataReq}
 
     def executeUserCommand():
         try:
