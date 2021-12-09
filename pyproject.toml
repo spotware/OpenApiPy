@@ -1,11 +1,12 @@
 [tool]
 
 [tool.poetry]
-name = "spotware_openApiPy"
+name = "spotware_open_api"
 version = "0.0.0"
-homepage = "https://github.com/spotware/spotware-openApiPy"
+homepage = "https://github.com/spotware/openApiPy"
 description = "A Python package for interacting with Spotware Open API"
 authors = ["Spotware <connect@spotware.com>"]
+documentation = https://spotware.github.io/openApiPy
 readme = "README.md"
 license =  "MIT"
 classifiers=[
