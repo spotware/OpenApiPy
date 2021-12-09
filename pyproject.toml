@@ -11,7 +11,7 @@ license =  "MIT"
 classifiers=[
     'License :: OSI Approved :: MIT License',
     'Natural Language :: English',
-    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.8',
 ]
 include = [
     "LICENSE",
@@ -19,7 +19,7 @@ include = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 importlib_metadata = "^3.4.0"
 Twisted = "21.7.0"
 protobuf = "3.19.1"
