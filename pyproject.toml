@@ -21,12 +21,10 @@ include = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-importlib_metadata = "^3.4.0"
 Twisted = "21.7.0"
 protobuf = "3.19.1"
 
 [tool.poetry.dev-dependencies]
-mkdocs-material = "^6.1.5"
 Twisted = "21.7.0"
 protobuf = "3.19.1"
 
