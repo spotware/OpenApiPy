@@ -5,8 +5,8 @@ site_author: Spotware
 site_description: A Python package for interacting with Spotware Open API
 
 # Repository information
-repo_name: spotware/spotware-openApiPy
-repo_url: https://github.com/spotware/spotware-openApiPy
+repo_name: spotware/openApiPy
+repo_url: https://github.com/spotware/openApiPy
 edit_uri: ""
 
 # Copyright
