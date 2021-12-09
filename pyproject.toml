@@ -1,0 +1,49 @@
+[tool]
+
+[tool.poetry]
+name = "spotware_openApiPy"
+version = "0.0.0"
+homepage = "https://github.com/spotware/spotware-openApiPy"
+description = "A Python package for interacting with Spotware Open API"
+authors = ["Spotware <connect@spotware.com>"]
+readme = "README.md"
+license =  "MIT"
+classifiers=[
+    'License :: OSI Approved :: MIT License',
+    'Natural Language :: English',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
+]
+include = [
+    "LICENSE",
+    "spotware_openApiPy/py.typed"
+]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+importlib_metadata = "^3.4.0"
+
+[tool.poetry.dev-dependencies]
+mkdocs-material = "^6.1.5"
+
+
+
+
+
+
+[tool.black]
+line-length=100
+
+[tool.pylint.reports]
+output-format="colorized"
+reports="y"
+include-ids="yes"
+msg-template="{msg_id}:{line:3d},{column}: {obj}: {msg}"
+
+[tool.pytest.ini_options]
+addopts = "--cov=spotware_openApiPy --cov-branch --cov-report term-missing  -vv --color=yes --cov-fail-under 100"
+python_files = "tests.py test_*.py *_tests.py"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

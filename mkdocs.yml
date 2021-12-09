@@ -1,0 +1,34 @@
+---
+# Project Information
+site_name: OpenApiPy
+site_author: Spotware
+site_description: A Python package for interacting with Spotware Open API
+
+# Repository information
+repo_name: spotware/spotware-openApiPy
+repo_url: https://github.com/spotware/spotware-openApiPy
+edit_uri: ""
+
+# Copyright
+copyright: Copyright &copy; 2020 Spotware
+
+# Configuration
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.tabs
+  language: en
+
+# Footer
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/spotware
+      name: spotware on GitHub
+
+# Page tree
+nav:
+  - Home: index.md
