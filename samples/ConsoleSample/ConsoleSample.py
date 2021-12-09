@@ -4,13 +4,13 @@ import sys
 #sys.path.append('../OpenApiPy')
 #sys.path.append('../OpenApiPy/messages')
 from spotware_open_api import client
-from auth import Auth
-from protobuf import Protobuf
-from tcpProtocol import TcpProtocol
-from messages.OpenApiCommonModelMessages_pb2 import *
-from messages.OpenApiCommonMessages_pb2 import *
-from messages.OpenApiMessages_pb2 import *
-from messages.OpenApiModelMessages_pb2 import *
+from spotware_open_api import auth
+from spotware_open_api import protobuf
+from spotware_open_api import tcpProtocol
+from spotware_open_api.messages.OpenApiCommonModelMessages_pb2 import *
+from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
+from spotware_open_api.messages.OpenApiMessages_pb2 import *
+from spotware_open_api.messages.OpenApiModelMessages_pb2 import *
 from twisted.internet import reactor
 from inputimeout import inputimeout, TimeoutOccurred
 import webbrowser

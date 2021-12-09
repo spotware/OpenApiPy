@@ -8,8 +8,8 @@ class Protobuf(object):
     @classmethod
     def populate(cls):
         import re
-        from spotware_open_api.messages import OpenApiCommonMessages_pb2 as o1
-        from spotware_open_api.messages import OpenApiMessages_pb2 as o2
+        from .messages import OpenApiCommonMessages_pb2 as o1
+        from .messages import OpenApiMessages_pb2 as o2
 
         for name in dir(o1) + dir(o2):
             if not name.startswith("Proto"):
