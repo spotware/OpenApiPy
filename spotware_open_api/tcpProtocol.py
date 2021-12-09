@@ -3,10 +3,10 @@
 from collections import deque
 from twisted.protocols.basic import Int32StringReceiver
 from twisted.internet import task
-from messages.OpenApiCommonModelMessages_pb2 import *
-from messages.OpenApiCommonMessages_pb2 import *
-from messages.OpenApiMessages_pb2 import *
-from messages.OpenApiModelMessages_pb2 import *
+from spotware_open_api.messages.OpenApiCommonModelMessages_pb2 import *
+from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
+from spotware_open_api.messages.OpenApiMessages_pb2 import *
+from spotware_open_api.messages.OpenApiModelMessages_pb2 import *
 import datetime
 
 class TcpProtocol(Int32StringReceiver):

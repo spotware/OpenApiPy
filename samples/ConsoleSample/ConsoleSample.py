@@ -3,7 +3,7 @@
 import sys
 #sys.path.append('../OpenApiPy')
 #sys.path.append('../OpenApiPy/messages')
-from spotware_open_api.client import Client
+from spotware_open_api import client
 from auth import Auth
 from protobuf import Protobuf
 from tcpProtocol import TcpProtocol
