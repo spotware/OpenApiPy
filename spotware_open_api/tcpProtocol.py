@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import sys
 from collections import deque
 from twisted.protocols.basic import Int32StringReceiver
 from twisted.internet import task

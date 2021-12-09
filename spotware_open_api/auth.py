@@ -1,7 +1,6 @@
 from endpoints import EndPoints
 import requests
 
-
 class Auth:
     def __init__(self, appClientId, appClientSecret, redirectUri):
         self.appClientId = appClientId

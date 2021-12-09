@@ -2,7 +2,6 @@
 
 from twisted.internet.endpoints import clientFromString
 from twisted.application.internet import ClientService
-from OpenApiMessages_pb2 import ProtoOAGetTrendbarsReq
 from protobuf import Protobuf
 from factory import Factory
 from twisted.internet import reactor, defer

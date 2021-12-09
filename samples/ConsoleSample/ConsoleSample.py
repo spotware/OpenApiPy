@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import sys
-sys.path.append('../OpenApiPy')
-sys.path.append('../OpenApiPy/messages')
-from client import Client
+#sys.path.append('../OpenApiPy')
+#sys.path.append('../OpenApiPy/messages')
+from spotware_open_api.client import Client
 from auth import Auth
 from protobuf import Protobuf
 from tcpProtocol import TcpProtocol

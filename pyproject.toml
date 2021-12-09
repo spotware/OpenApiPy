@@ -15,8 +15,7 @@ classifiers=[
     'Programming Language :: Python :: 3.8',
 ]
 include = [
-    "LICENSE",
-    "spotware_openApiPy/py.typed"
+    "LICENSE"
 ]
 
 [tool.poetry.dependencies]
