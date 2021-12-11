@@ -9,7 +9,7 @@ A Python package for interacting with Spotware Open API
 
 
 - Free software: MIT
-- Documentation: https://spotware.github.io/openApiPy.
+- Documentation: https://spotware.github.io/OpenApiPy/.
 
 
 ## Features
