@@ -40,7 +40,8 @@ from spotware_open_api.messages.OpenApiMessages_pb2 import *
 from spotware_open_api.messages.OpenApiModelMessages_pb2 import *
 from twisted.internet import reactor
 
-client = Client(EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
+host = EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST
+client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
 
 def connected(_): # Callback for client connection
     print("\nConnected")
@@ -50,7 +51,8 @@ def connected(_): # Callback for client connection
     request.clientSecret = "Your application Client secret"
     # Client send method returns a Twisted deferred
     deferred = client.send(request)
-    # You can use the returned Twisted deferred to attach callbacks for getting message response or error backs for getting error if something went wrong
+    # You can use the returned Twisted deferred to attach callbacks
+    # for getting message response or error backs for getting error if something went wrong
     # deferred.addCallbacks(onProtoOAApplicationAuthRes, onError)
     deferred.addErrback(onError)
 
