@@ -40,6 +40,7 @@ from spotware_open_api.messages.OpenApiMessages_pb2 import *
 from spotware_open_api.messages.OpenApiModelMessages_pb2 import *
 from twisted.internet import reactor
 
+hostType = input("Host (Live/Demo): ")
 host = EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST
 client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
 
