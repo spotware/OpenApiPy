@@ -6,18 +6,18 @@ class Auth:
         self.appClientId = appClientId
         self.appClientSecret = appClientSecret
         self.redirectUri = redirectUri
-    def getAuthUri(self, scope = "trading", authUri = EndPoints.AUTH_URI):
-        return f"{authUri}?client_id={self.appClientId}&redirect_uri={self.redirectUri}&scope={scope}"
-    def getToken(self, authCode, tokenUri = EndPoints.TOKEN_URI):
-        request = requests.get(tokenUri, params=
+    def getAuthUri(self, scope = "trading", baseUri = EndPoints.AUTH_URI):
+        return f"{baseUri}?client_id={self.appClientId}&redirect_uri={self.redirectUri}&scope={scope}"
+    def getToken(self, authCode, baseUri = EndPoints.TOKEN_URI):
+        request = requests.get(baseUri, params=
                                {"grant_type": "authorization_code",
                                "code": authCode,
                               "redirect_uri": self.redirectUri,
                              "client_id": self.appClientId,
                             "client_secret": self.appClientSecret})
         return request.json()
-    def refreshToken(self, refreshToken, tokenUri = EndPoints.TOKEN_URI):
-        request = requests.get(tokenUri, params=
+    def refreshToken(self, refreshToken, baseUri = EndPoints.TOKEN_URI):
+        request = requests.get(baseUri, params=
                                {"grant_type": "refresh_token",
                                "refresh_token": refreshToken,
                              "client_id": self.appClientId,

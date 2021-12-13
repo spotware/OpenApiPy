@@ -2,33 +2,116 @@
 # Project Information
 site_name: OpenApiPy
 site_author: Spotware
-site_description: A Python package for interacting with Spotware Open API
+site_url: https://openapinet.readthedocs.io/en/latest/
+site_description: Spotware OpenApiPy Python package documentation
 
 # Repository information
 repo_name: spotware/openApiPy
 repo_url: https://github.com/spotware/openApiPy
-edit_uri: ""
+edit_uri: "https://github.com/spotware/openApiPy/tree/master/docs"
 
 # Copyright
-copyright: Copyright &copy; 2021 Spotware
+copyright: Copyright &copy; 2021 Spotware Systems Ltd. cTrader, cAlgo, cBroker, cMirror. All rights reserved.
 
 # Configuration
 theme:
-  name: material
-  icon:
-    repo: fontawesome/brands/github
-  features:
-    - navigation.instant
-    - navigation.tabs
-  language: en
+    name: material
+    favicon: img/favicon.ico
+    logo: img/logo.png
+    include_search_page: false
+    search_index_only: true
+    language: en
+    features:
+        - navigation.instant
+        - navigation.top
+        - navigation.tracking
+    palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+    - scheme: slate
+      primary: red
+      accent: red
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+    font:
+        text: Roboto
+        code: Roboto Mono
+    static_templates:
+    - 404.html
 
 # Footer
 extra:
+  generator: false
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/spotware
       name: Spotware on GitHub
 
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - admonition
+  - abbr
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: squidfunk
+      repo: mkdocs-material
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
 # Page tree
 nav:
-  - Home: index.md
+    - Getting Started: index.md
+    - Authentication: 'authentication.md' 
+    - Client: 'client.md'
+    - Samples: "https://github.com/spotware/OpenApiPy/tree/main/samples"
+
+
+
+
+
+
+
+
+
+
+
+
+

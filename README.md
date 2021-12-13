@@ -44,6 +44,9 @@ hostType = input("Host (Live/Demo): ")
 host = EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST
 client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
 
+def onError(failure): # Call back for errors
+    print("Message Error: ", failure)
+
 def connected(_): # Callback for client connection
     print("\nConnected")
     # Now we send a ProtoOAApplicationAuthReq
