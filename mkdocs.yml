@@ -10,7 +10,7 @@ repo_url: https://github.com/spotware/openApiPy
 edit_uri: ""
 
 # Copyright
-copyright: Copyright &copy; 2020 Spotware
+copyright: Copyright &copy; 2021 Spotware
 
 # Configuration
 theme:
@@ -27,7 +27,7 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/spotware
-      name: spotware on GitHub
+      name: Spotware on GitHub
 
 # Page tree
 nav:
