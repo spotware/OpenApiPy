@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from spotware_open_api import Client, Protobuf, TcpProtocol, Auth
+from spotware_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
+from spotware_open_api.endpoints import EndPoints
 from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
 from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
 from spotware_open_api.messages.OpenApiMessages_pb2 import *
@@ -12,9 +13,6 @@ import datetime
 
 if __name__ == "__main__":
     currentAccountId = None
-    liveHost = "live.ctraderapi.com"
-    demoHost = "demo.ctraderapi.com"
-    port = 5035
     hostType = input("Host (Live/Demo): ")
     hostType = hostType.lower()
 
@@ -41,7 +39,7 @@ if __name__ == "__main__":
     else:
         accessToken = input("Access Token: ")
 
-    client = Client(liveHost if hostType.lower() == "live" else demoHost, port, TcpProtocol)
+    client = Client(EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
     
     def connected(_): # Callback for client connection
         print("\nConnected")
