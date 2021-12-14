@@ -56,13 +56,17 @@ if __name__ == "__main__":
         if message.payloadType in [ProtoOASubscribeSpotsRes().payloadType, ProtoOAAccountLogoutRes().payloadType, ProtoHeartbeatEvent().payloadType]:
             return
         elif message.payloadType == ProtoOAApplicationAuthRes().payloadType:
-            print("API Application authorized")
+            print("API Application authorized\n")
+            print("Please use setAccount command to set the authorized account before sending any other command, try help for more detail\n")
+            print("To get account IDs use ProtoOAGetAccountListByAccessTokenReq command")
             if currentAccountId is not None:
                 sendProtoOAAccountAuthReq()
                 return
         elif message.payloadType == ProtoOAAccountAuthRes().payloadType:
             protoOAAccountAuthRes = Protobuf.extract(message)
-            print(f"Account {protoOAAccountAuthRes.ctidTraderAccountId} has been authorized")
+            print(f"Account {protoOAAccountAuthRes.ctidTraderAccountId} has been authorized\n")
+            print("This acccount will be used for all future requests\n")
+            print("You can change the account by using setAccount command")
         else:
             print("Message received: \n", Protobuf.extract(message))
         reactor.callLater(3, callable=executeUserCommand)
