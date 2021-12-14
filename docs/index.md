@@ -1,10 +1,12 @@
 ### Introduction
 
-A Python package for interacting with Spotware Open API.
+A Python package for interacting with cTrader Open API.
 
 This package is developed and maintained by Spotware.
 
 You can use OpenApiPy on all kinds of Python apps, it uses Twisted to send and receive messages asynchronously.
+
+Github Repository: https://github.com/spotware/OpenApiPy
 
 ### Installation
 

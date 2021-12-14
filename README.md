@@ -5,7 +5,7 @@
 ![versions](https://img.shields.io/pypi/pyversions/spotware-open-api.svg)
 [![GitHub license](https://img.shields.io/github/license/spotware/OpenApiPy.svg)](https://github.com/spotware/OpenApiPy/blob/main/LICENSE)
 
-A Python package for interacting with Spotware Open API.
+A Python package for interacting with cTrader Open API.
 
 This package uses Twisted and it works asynchronously.
 
