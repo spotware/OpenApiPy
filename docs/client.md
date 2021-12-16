@@ -69,6 +69,16 @@ deferred.addCallbacks(onProtoOAApplicationAuthRes, onError)
 ```
 For more about Twisted deferreds please check their documentation: https://docs.twistedmatrix.com/en/twisted-16.2.0/core/howto/defer-intro.html
 
+### Canceling Message
+
+You can cancel a message by calling the returned deferred from Client send method Cancel method.
+
+If the message is not sent yet, it will be removed from the messages queue and the deferred Errback method will be called with CancelledError.
+
+If the message is already sent but the response is not received yet, then you will not receive the response and the deferred Errback method will be called with CancelledError.
+
+If the message is already sent and the reponse is received then canceling it's deferred will not have any effect.
+
 ### Other Callbacks
 
 The client class has some other optional general purpose callbacks that you can use:
