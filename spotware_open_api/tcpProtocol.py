@@ -29,7 +29,7 @@ class TcpProtocol(Int32StringReceiver):
     def heartbeat(self):
         self.send(ProtoHeartbeatEvent(), True)
 
-    def send(self, message, instant=False, clientMsgId=None):
+    def send(self, message, instant=False, clientMsgId=None, isCanceled = None):
         data = b''
 
         if isinstance(message, ProtoMessage):
@@ -48,7 +48,7 @@ class TcpProtocol(Int32StringReceiver):
             self.sendString(data)
             self._lastSendMessageTime = datetime.datetime.now()
         else:
-            self._send_queue.append(data)
+            self._send_queue.append((isCanceled, data))
 
     def _sendStrings(self):
         size = len(self._send_queue)
@@ -59,7 +59,10 @@ class TcpProtocol(Int32StringReceiver):
             return
 
         for _ in range(min(size, self.factory.numberOfMessagesToSendPerSecond)):
-            self.sendString(self._send_queue.popleft())
+            isCanceled, data = self._send_queue.popleft()
+            if isCanceled is not None and isCanceled():
+                continue;
+            self.sendString(data)
         self._lastSendMessageTime = datetime.datetime.now()
 
     def stringReceived(self, data):

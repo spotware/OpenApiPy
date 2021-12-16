@@ -22,11 +22,11 @@ if __name__ == "__main__":
 
     appClientId = input("App Client ID: ")
     appClientSecret = input("App Client Secret: ")
-    appRedirectUri = input("App Redirect URI: ")
     isTokenAvailable = input("Do you have an access token? (Y/N): ").lower() == "y"
 
     accessToken = None
     if isTokenAvailable == False:
+        appRedirectUri = input("App Redirect URI: ")
         auth = Auth(appClientId, appClientSecret, appRedirectUri)
         authUri = auth.getAuthUri()
         print(f"Please continue the authentication on your browser:\n {authUri}")
@@ -34,6 +34,8 @@ if __name__ == "__main__":
         print("\nThen enter the auth code that is appended to redirect URI immediatly (the code is after ?code= in URI)")
         authCode = input("Auth Code: ")
         token = auth.getToken(authCode)
+        if "accessToken" not in token:
+            raise KeyError(token)
         print("Token: \n", token)
         accessToken = token["accessToken"]
     else:
@@ -73,6 +75,7 @@ if __name__ == "__main__":
     
     def onError(failure): # Call back for errors
         print("Message Error: ", failure)
+        reactor.callLater(3, callable=executeUserCommand)
 
     def showHelp():
         print("Commands (Parameters with an * are required), ignore the description inside ()")

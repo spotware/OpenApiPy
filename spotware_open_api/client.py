@@ -48,15 +48,15 @@ class Client(ClientService):
     def send(self, message, clientMsgId=None, responseTimeoutInSeconds=5, **params):
         if type(message) in [str, int]:
             message = Protobuf.get(message, **params)
-        responseDeferred = defer.Deferred()
+        responseDeferred = defer.Deferred(self._cancelMessageDiferred)
         if clientMsgId is None:
             clientMsgId = str(id(responseDeferred))
         if clientMsgId is not None:
             self._responseDeferreds[clientMsgId] = responseDeferred
         responseDeferred.addErrback(lambda failure: self._onResponseFailure(failure, clientMsgId))
         responseDeferred.addTimeout(responseTimeoutInSeconds, self._runningReactor)
-        protocolDiferred = self.whenConnected(failAfterFailures=1)
-        protocolDiferred.addCallbacks(lambda protocol: protocol.send(message, clientMsgId=clientMsgId), responseDeferred.errback)
+        protocolDiferred = self.whenConnected(failAfterFailures=1)       
+        protocolDiferred.addCallbacks(lambda protocol: protocol.send(message, clientMsgId=clientMsgId, isCanceled=lambda: clientMsgId not in self._responseDeferreds), responseDeferred.errback)
         return responseDeferred
 
     def setConnectedCallback(self, callback):
@@ -72,3 +72,8 @@ class Client(ClientService):
         if (msgId is not None and msgId in self._responseDeferreds):
             self._responseDeferreds.pop(msgId)
         return failure
+
+    def _cancelMessageDiferred(self, deferred):
+        deferredIdString = str(id(deferred))
+        if (deferredIdString in self._responseDeferreds):
+            self._responseDeferreds.pop(deferredIdString)
