@@ -12,7 +12,7 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from spotware_open_api.messages import OpenApiCommonModelMessages_pb2 as OpenApiCommonModelMessages__pb2
+from ctrader_open_api.messages import OpenApiCommonModelMessages_pb2 as OpenApiCommonModelMessages__pb2
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bOpenApiCommonMessages.proto\x1a OpenApiCommonModelMessages.proto\"I\n\x0cProtoMessage\x12\x13\n\x0bpayloadType\x18\x01 \x02(\r\x12\x0f\n\x07payload\x18\x02 \x01(\x0c\x12\x13\n\x0b\x63lientMsgId\x18\x03 \x01(\t\"\x8b\x01\n\rProtoErrorRes\x12\x31\n\x0bpayloadType\x18\x01 \x01(\x0e\x32\x11.ProtoPayloadType:\tERROR_RES\x12\x11\n\terrorCode\x18\x02 \x02(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x12\x1f\n\x17maintenanceEndTimestamp\x18\x04 \x01(\x04\"N\n\x13ProtoHeartbeatEvent\x12\x37\n\x0bpayloadType\x18\x01 \x01(\x0e\x32\x11.ProtoPayloadType:\x0fHEARTBEAT_EVENTBB\n\"com.xtrader.protocol.proto.commonsB\x17\x43ontainerCommonMessagesP\x01\xa0\x01\x01')
 

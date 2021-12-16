@@ -1,4 +1,4 @@
-from spotware_open_api.endpoints import EndPoints
+from ctrader_open_api.endpoints import EndPoints
 import requests
 
 class Auth:

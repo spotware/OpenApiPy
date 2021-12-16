@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-from spotware_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
-from spotware_open_api.endpoints import EndPoints
-from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
-from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
-from spotware_open_api.messages.OpenApiMessages_pb2 import *
-from spotware_open_api.messages.OpenApiModelMessages_pb2 import *
+from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
+from ctrader_open_api.endpoints import EndPoints
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
 from twisted.internet import reactor
 from inputimeout import inputimeout, TimeoutOccurred
 import webbrowser

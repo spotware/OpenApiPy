@@ -3,9 +3,9 @@ name: Code Quality Checks
 
 on:
   push:
-    branches: [main, development]
+    branches: [main, dev]
   pull_request:
-    branches: [main, development]
+    branches: [main, dev]
 
 jobs:
   build:

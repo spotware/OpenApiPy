@@ -2,8 +2,8 @@
 
 from twisted.internet.endpoints import clientFromString
 from twisted.application.internet import ClientService
-from spotware_open_api.protobuf import Protobuf
-from spotware_open_api.factory import Factory
+from ctrader_open_api.protobuf import Protobuf
+from ctrader_open_api.factory import Factory
 from twisted.internet import reactor, defer
 
 class Client(ClientService):
