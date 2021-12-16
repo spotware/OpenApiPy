@@ -12,7 +12,7 @@ Let's create an isntance of Client class:
 
 ```python
 
-from spotware_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
+from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
 
 client = Client(EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
 
@@ -36,10 +36,10 @@ To send a message you have to first create the proto message, ex:
 
 ```python
 # Import all message types
-from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
-from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
-from spotware_open_api.messages.OpenApiMessages_pb2 import *
-from spotware_open_api.messages.OpenApiModelMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
 
 # ProtoOAApplicationAuthReq message
 applicationAuthReq = ProtoOAApplicationAuthReq()

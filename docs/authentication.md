@@ -3,16 +3,16 @@
 For authentication you can use the package Auth class, first create an instance of it:
 
 ```python
-from spotware_open_api import Auth
+from ctrader_open_api import Auth
 
 auth = Auth("Your App ID", "Your App Secret", "Your App redirect URI")
 ```
 
 ### Auth URI
 
-The first step for authentication is sending user to the Spotware Open API authentication web page, there the user will give access to your API application to manage the user trading accounts on behalf of him.
+The first step for authentication is sending user to the cTrader Open API authentication web page, there the user will give access to your API application to manage the user trading accounts on behalf of him.
 
-To get the Spotware Open API authentication web page URL you can use the Auth class getAuthUri method:
+To get the cTrader Open API authentication web page URL you can use the Auth class getAuthUri method:
 
 ```python
 authUri = auth.getAuthUri()

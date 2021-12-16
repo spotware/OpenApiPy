@@ -1,8 +1,8 @@
 # OpenApiPy
 
 
-[![PyPI version](https://badge.fury.io/py/spotware-open-api.svg)](https://badge.fury.io/py/spotware-open-api)
-![versions](https://img.shields.io/pypi/pyversions/spotware-open-api.svg)
+[![PyPI version](https://badge.fury.io/py/ctrader-open-api.svg)](https://badge.fury.io/py/ctrader-open-api)
+![versions](https://img.shields.io/pypi/pyversions/ctrader-open-api.svg)
 [![GitHub license](https://img.shields.io/github/license/spotware/OpenApiPy.svg)](https://github.com/spotware/OpenApiPy/blob/main/LICENSE)
 
 A Python package for interacting with cTrader Open API.
@@ -26,18 +26,18 @@ This package uses Twisted and it works asynchronously.
 ## Insallation
 
 ```
-pip install spotware-open-api
+pip install ctrader-open-api
 ```
 
 # Usage
 
 ```python
 
-from spotware_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
-from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
-from spotware_open_api.messages.OpenApiCommonMessages_pb2 import *
-from spotware_open_api.messages.OpenApiMessages_pb2 import *
-from spotware_open_api.messages.OpenApiModelMessages_pb2 import *
+from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
 from twisted.internet import reactor
 
 hostType = input("Host (Live/Demo): ")
