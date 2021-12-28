@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 /.vs
 /samples/ConsoleSample/ConsoleSample-dev.py
+/samples/KleinWebAppSample/credentials-dev.json
