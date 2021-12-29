@@ -12,3 +12,6 @@ class AddAccountsElement(Element):
     def addAccountButton(self, request, tag):
         tag.fillSlots(addAccountLink=self.addAccountLink)
         return tag
+
+class ClientAreaElement(Element):
+    loader = XMLFile(FilePath('./markup/client_area.xml'))

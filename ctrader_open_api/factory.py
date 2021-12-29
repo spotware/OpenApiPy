@@ -7,9 +7,6 @@ class Factory(ClientFactory):
         super().__init__()
         self.client = kwargs['client']
         self.numberOfMessagesToSendPerSecond = self.client.numberOfMessagesToSendPerSecond
-    def buildProtocol(self, addr):
-        protocol = super().buildProtocol(addr)
-        return protocol
     def connected(self, protocol):
         self.client._connected(protocol)
     def disconnected(self, reason):

@@ -47,7 +47,7 @@ client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
 def onError(failure): # Call back for errors
     print("Message Error: ", failure)
 
-def connected(_): # Callback for client connection
+def connected(client): # Callback for client connection
     print("\nConnected")
     # Now we send a ProtoOAApplicationAuthReq
     request = ProtoOAApplicationAuthReq()
@@ -60,10 +60,10 @@ def connected(_): # Callback for client connection
     # deferred.addCallbacks(onProtoOAApplicationAuthRes, onError)
     deferred.addErrback(onError)
 
-def disconnected(reason): # Callback for client disconnection
+def disconnected(client, reason): # Callback for client disconnection
     print("\nDisconnected: ", reason)
 
-def onMessageReceived(message): # Callback for receiving all messages
+def onMessageReceived(client, message): # Callback for receiving all messages
     print("Message received: \n", Protobuf.extract(message))
 
 # Setting optional client callbacks

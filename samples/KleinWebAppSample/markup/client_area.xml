@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:t="http://twistedmatrix.com/ns/twisted.web.template/0.1">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Open API Web App Sample</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="~/js/site.js"></script>
+	<script src="~/js/luxon/luxon-1.24.1.js" type="text/javascript"></script>
+	<script src="~/js/Chart.js/chart-3.0.0-beta.9.js" type="text/javascript"></script>
+	<script src="~/js/chartjs-adapter-luxon/chartjs-adapter-luxon-0.2.1.js" type="text/javascript"></script>
+	<script src="~/js/chartjs-chart-financial/chartjs-chart-financial.js" type="text/javascript"></script>
+	<script src="~/js/hammer.js/hammer.js" type="text/javascript"></script>
+	<script src="~/js/chartjs-plugin-zoom/dist/chartjs-plugin-zoom.min.js" type="text/javascript"></script>
+	<script src="~/js/trading-accounts.js" asp-append-version="true"></script>
+</head>
+<body class="container-fluid bg-dark">
+	<div>
+		<div class="row no-gutters m-0 p-0">
+			<div class="col-10" oncontextmenu="return false">
+				<canvas id="chartCanvas"></canvas>
+			</div>
+			<div class="col d-grid gap-1">
+				<select id="accounts-list" class="form-select">
+					@foreach (var account in Model.Accounts)
+					{
+					<option value="@account.TraderLogin" id="@account.CtidTraderAccountId">@account.TraderLogin</option>
+					}
+				</select>
+				<div class="table-wrapper-scroll-y" style="height: 60vh;">
+					<table class="table table-hover table-dark table-striped table-bordered" id="symbolsTable">
+						<thead>
+							<tr>
+								<th scope="col">Name</th>
+								<th scope="col">Bid</th>
+								<th scope="col">Ask</th>
+							</tr>
+						</thead>
+						<tbody id="symbolsTableBody" />
+					</table>
+				</div>
+			</div>
+		</div>
+		<div class="row no-gutters text-white w-100 m-0 p-0">
+			<ul class="nav nav-tabs" id="accountTab" role="tablist">
+				<li class="nav-item" role="presentation">
+					<button class="nav-link active text-muted" id="positions-tab" data-bs-toggle="tab" data-bs-target="#positions" type="button" role="tab" aria-controls="positions" aria-selected="true">Positions</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link text-muted" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab" aria-controls="orders" aria-selected="false">Orders</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link text-muted" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="false">History</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link text-muted" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" type="button" role="tab" aria-controls="transactions" aria-selected="false">Transactions</button>
+				</li>
+			</ul>
+			<div class="tab-content m-0 p-0" id="accountTabContent">
+				<div class="tab-pane fade show active" id="positions" role="tabpanel" aria-labelledby="positions-tab">
+					<div class="btn-toolbar ml-0 mt-1 mb-1 p-0" role="toolbar">
+						<button type="button" class="btn btn-secondary m-1" id="createMarketOrderButton">Create New Order</button>
+						<button type="button" class="btn btn-danger m-1" id="closeAllPositionsButton">Close All Positions</button>
+					</div>
+					<div class="table-wrapper-scroll-y" style="height: 20vh;">
+						<table class="table table-hover table-dark table-striped table-bordered">
+							<thead>
+								<tr>
+									<th scope="col">ID</th>
+									<th scope="col">Symbol</th>
+									<th scope="col">Direction</th>
+									<th scope="col">Volume</th>
+									<th scope="col">Created</th>
+									<th scope="col">Entry Price</th>
+									<th scope="col">SL</th>
+									<th scope="col">TP</th>
+									<th scope="col">Commission</th>
+									<th scope="col">Swap</th>
+									<th scope="col">Margin</th>
+									<th scope="col">Pips</th>
+									<th scope="col">Label</th>
+									<th scope="col">Comment</th>
+									<th scope="col">Gross Profit</th>
+									<th scope="col">Net Profit</th>
+									<th scope="col"></th>
+								</tr>
+							</thead>
+							<tbody id="positions-table-body" />
+						</table>
+					</div>
+				</div>
+				<div class="tab-pane fade" id="orders" role="tabpanel" aria-labelledby="orders-tab">
+					<div class="btn-toolbar ml-0 mt-1 mb-1 p-0" role="toolbar">
+						<button type="button" class="btn btn-secondary m-1" id="createPendingOrderButton">Create New Order</button>
+						<button type="button" class="btn btn-danger m-1" id="cancelAllOrdersButton">Cancel All Orders</button>
+					</div>
+					<div class="table-wrapper-scroll-y" style="height: 20vh;">
+						<table class="table table-hover table-dark table-striped table-bordered">
+							<thead>
+								<tr>
+									<th scope="col">ID</th>
+									<th scope="col">Symbol</th>
+									<th scope="col">Direction</th>
+									<th scope="col">Volume</th>
+									<th scope="col">Type</th>
+									<th scope="col">Created</th>
+									<th scope="col">Target Price</th>
+									<th scope="col">SL</th>
+									<th scope="col">TP</th>
+									<th scope="col">Expiry</th>
+									<th scope="col">Label</th>
+									<th scope="col">Comment</th>
+									<th scope="col"></th>
+								</tr>
+							</thead>
+							<tbody id="orders-table-body" />
+						</table>
+					</div>
+				</div>
+				<div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+					<div class="btn-toolbar ml-0 mt-1 mb-1 p-0 row" role="toolbar">
+						<div class="col-1" style="width: 4%">
+							<label for="historyFromDateTime" class="m-2">From</label>
+						</div>
+						<div class="col-2">
+							<input type="datetime-local" id="historyFromDateTime" class="form-control m-1" />
+                    </div>
+						<div class="col-1" style="width: 3%">
+							<label for="historyToDateTime" class="m-2">To</label>
+						</div>
+						<div class="col-2">
+							<input type="datetime-local" id="historyToDateTime" class="form-control m-1" />
+                    </div>
+						<div class="col-2">
+							<button type="button" class="btn btn-secondary m-1" id="loadHistoryButton">Load</button>
+						</div>
+					</div>
+					<div class="table-wrapper-scroll-y" style="height: 20vh;">
+						<table class="table table-hover table-dark table-striped table-bordered">
+							<thead>
+								<tr>
+									<th scope="col">ID</th>
+									<th scope="col">Order ID</th>
+									<th scope="col">Position ID</th>
+									<th scope="col">Symbol</th>
+									<th scope="col">Direction</th>
+									<th scope="col">Volume</th>
+									<th scope="col">Filled Volume</th>
+									<th scope="col">Closed Volume</th>
+									<th scope="col">Status</th>
+									<th scope="col">Gross Profit</th>
+									<th scope="col">Swap</th>
+									<th scope="col">Closed Balance</th>
+									<th scope="col">Commission</th>
+									<th scope="col">Execution Price</th>
+									<th scope="col">Closing</th>
+									<th scope="col">Creation</th>
+									<th scope="col">Execution</th>
+									<th scope="col">Last Updated</th>
+								</tr>
+							</thead>
+							<tbody id="historyTableBody" />
+						</table>
+					</div>
+				</div>
+				<div class="tab-pane fade" id="transactions" role="tabpanel" aria-labelledby="transactions-tab">
+					<div class="btn-toolbar ml-0 mt-1 mb-1 p-0 row" role="toolbar">
+						<div class="col-1" style="width: 4%">
+							<label for="transactionsFromDateTime" class="m-2">From</label>
+						</div>
+						<div class="col-2">
+							<input type="datetime-local" id="transactionsFromDateTime" class="form-control m-1" />
+                    </div>
+						<div class="col-1" style="width: 3%">
+							<label for="transactionsToDateTime" class="m-2">To</label>
+						</div>
+						<div class="col-2">
+							<input type="datetime-local" id="transactionsToDateTime" class="form-control m-1" />
+                    </div>
+						<div class="col-2">
+							<button type="button" class="btn btn-secondary m-1" id="loadTransactionsButton">Load</button>
+						</div>
+					</div>
+					<div class="table-wrapper-scroll-y" style="height: 20vh;">
+						<table class="table table-hover table-dark table-striped table-bordered">
+							<thead>
+								<tr>
+									<th scope="col">ID</th>
+									<th scope="col">Type</th>
+									<th scope="col">Amount</th>
+									<th scope="col">Balance</th>
+									<th scope="col">Equity</th>
+									<th scope="col">Version</th>
+									<th scope="col">Note</th>
+									<th scope="col">Time</th>
+								</tr>
+							</thead>
+							<tbody id="transactionsTableBody" />
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="row no-gutters text-white w-100 m-0 p-0" id="accountStats">
+			<div class="col text-center">
+				<p class="m-1">Balance</p>
+				<p id="balance" class="m-1"></p>
+			</div>
+
+			<div class="col text-center">
+				<p class="m-1">Equity</p>
+				<p id="equity" class="m-1"></p>
+			</div>
+
+			<div class="col text-center">
+				<p class="m-1">Margin Used</p>
+				<p id="marginUsed" class="m-1"></p>
+			</div>
+
+			<div class="col text-center">
+				<p class="m-1">Free Margin</p>
+				<p id="freeMargin" class="m-1"></p>
+			</div>
+
+			<div class="col text-center">
+				<p class="m-1">Margin Level</p>
+				<p id="marginLevel" class="m-1"></p>
+			</div>
+
+			<div class="col text-center">
+				<p class="m-1">Unr. Gross</p>
+				<p id="unrealizedGrossProfit" class="m-1"></p>
+			</div>
+
+			<div class="col text-center">
+				<p class="m-1">Unr. Net</p>
+				<p id="unrealizedNetProfit" class="m-1"></p>
+			</div>
+		</div>
+	</div>
+
+	<div id="toasts-container" aria-live="polite" aria-atomic="true" class="d-flex flex-column flex-wrap justify-content-start align-items-start" style="position: absolute; bottom: 0; right: 0;">
+	</div>
+
+	<div class="modal fade" id="loadingModal" tabindex="-1" role="dialog" aria-labelledby="loadingModalTitle" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="loadingModalTitle">Loading Data</h5>
+				</div>
+				<div class="modal-body">
+					<p>Please wait...</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal fade" id="orderModal" tabindex="-1" role="dialog" aria-labelledby="orderModalTitle" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+			<div class="modal-content bg-dark">
+				<div class="modal-header">
+					<h5 class="modal-title text-white" id="orderModalTitle"></h5>
+					<button type="button" class="btn btn-secondary" id="closeOrderModalButton">
+						<i class="fas fa-times"></i>
+					</button>
+				</div>
+				<div class="modal-body m-0 p-0 pt-1 pb-1">
+					<ul class="nav nav-tabs" id="orderModalTab" role="tablist">
+						<li class="nav-item" role="presentation">
+							<button class="nav-link active text-muted" id="marketOrderTab" data-bs-toggle="tab" data-bs-target="#marketOrderTabContent" type="button" role="tab" aria-controls="marketOrderTabContent" aria-selected="true">Market</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button class="nav-link text-muted" id="pendingOrderTab" data-bs-toggle="tab" data-bs-target="#pendingOrderTabContent" type="button" role="tab" aria-controls="pendingOrderTabContent" aria-selected="false">Pending</button>
+						</li>
+					</ul>
+					<div class="tab-content m-0 p-2" id="orderModalTabContent">
+						<div class="tab-pane fade show active" id="marketOrderTabContent" role="tabpanel" aria-labelledby="marketOrderTab">
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<label for="marketOrderSymbolsList">Symbol</label>
+									<select id="marketOrderSymbolsList" class="form-select">
+									</select>
+								</div>
+								<div class="col">
+									<label for="marketOrderSymbolsList">Direction</label>
+									<select id="marketOrderDirectionList" class="form-select">
+										<option value="Buy">Buy</option>
+										<option value="Sell">Sell</option>
+									</select>
+								</div>
+							</div>
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<label for="marketOrderVolumeInput">Volume (Units)</label>
+									<input type="number" class="form-control" id="marketOrderVolumeInput" oninput="isNumberInRange(this)" onkeypress="return isNumeric(event)" min="0" />
+                            </div>
+								<div class="col">
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="marketRange" />
+											<label class="form-check-label" for="marketRange">Market Range</label>
+										</div>
+									<div class="row">
+										<div class="col">
+											<input type="number" class="form-control" id="marketRangeInput" value="10" min="1" step="1" oninput="isNumberInRange(this)" onkeypress="return isNumeric(event)" disabled="" />
+                                    </div>
+										<div class="col-2 p-1">
+											<label>Pips</label>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="marketOrderStopLoss" />
+											<label class="form-check-label" for="marketOrderStopLoss">Stop Loss</label>
+										</div>
+									<div class="row">
+										<div class="col">
+											<input type="number" class="form-control" id="marketOrderStopLossInput" value="20" min="1" step="1" oninput="isNumberInRange(this)" onkeypress="return isNumeric(event)" disabled="" />
+                                    </div>
+										<div class="col-2 p-1">
+											<label for="marketOrderStopLossInput">Pips</label>
+										</div>
+									</div>
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="marketOrderTrailingStopLoss" disabled="" />
+											<label class="form-check-label" for="marketOrderTrailingStopLoss">Trailing Stop</label>
+										</div>
+								</div>
+								<div class="col">
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="marketOrderTakeProfit" />
+											<label class="form-check-label" for="marketOrderTakeProfit">Take Profit</label>
+										</div>
+									<div class="row">
+										<div class="col">
+											<input type="number" class="form-control" id="marketOrderTakeProfitInput" value="20" min="1" step="1" oninput="isNumberInRange(this)" onkeypress="return isNumeric(event)" disabled="" />
+                                    </div>
+										<div class="col-2 p-1">
+											<label for="marketOrderTakeProfitInput">Pips</label>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="text-white form-group">
+								<textarea class="form-control" maxlength="100" id="marketOrderCommenttextarea" rows="3" placeholder="Comment..."></textarea>
+							</div>
+						</div>
+						<div class="tab-pane fade m-0 p-0" id="pendingOrderTabContent" role="tabpanel" aria-labelledby="pendingOrderTab">
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<label for="pendingOrderSymbolsList">Symbol</label>
+									<select id="pendingOrderSymbolsList" class="form-select">
+									</select>
+								</div>
+								<div class="col">
+									<label for="pendingOrderSymbolsList">Direction</label>
+									<select id="pendingOrderDirectionList" class="form-select">
+										<option value="Buy">Buy</option>
+										<option value="Sell">Sell</option>
+									</select>
+								</div>
+							</div>
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<label for="pendingOrderTypeList">Type</label>
+									<select id="pendingOrderTypeList" class="form-select">
+										<option value="Limit">Limit</option>
+										<option value="Stop">Stop</option>
+										<option value="StopLimit">Stop Limit</option>
+									</select>
+								</div>
+							</div>
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<label for="pendingOrderVolumeInput">Volume (Units)</label>
+									<input type="number" class="form-control" id="pendingOrderVolumeInput" oninput="isNumberInRange(this)" onkeypress="return isNumeric(event)" min="0" />
+                            </div>
+								<div class="col">
+									<label for="pendingOrderPriceInput">Target Price</label>
+									<input type="number" class="form-control" id="pendingOrderPriceInput" value="0" onkeypress="return isNumeric(event)" min="0" />
+                            </div>
+							</div>
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<label for="pendingOrderLimitRangeInput">Limit Range (Pips)</label>
+									<input type="number" class="form-control" id="pendingOrderLimitRangeInput" onkeypress="return isNumeric(event)" min="0" value="10" disabled="" />
+                            </div>
+								<div class="col">
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="pendingOrderExpiry" />
+											<label class="form-check-label" for="pendingOrderExpiry">Expiry</label>
+										</div>
+									<input type="datetime-local" id="pendingOrderExpiryDateTime" class="form-control" disabled="" />
+                            </div>
+							</div>
+							<div class="row no-gutters text-white form-group">
+								<div class="col">
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="pendingOrderStopLoss" />
+											<label class="form-check-label" for="pendingOrderStopLoss">Stop Loss</label>
+										</div>
+									<div class="row">
+										<div class="col">
+											<input type="number" class="form-control" id="pendingOrderStopLossInput" value="20" min="1" step="1" oninput="isNumberInRange(this)" onkeypress="return isNumeric(event)" disabled="" />
+                                    </div>
+										<div class="col-2 p-1">
+											<label for="pendingOrderStopLossInput">Pips</label>
+										</div>
+									</div>
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="pendingOrderTrailingStopLoss" disabled="" />
+											<label class="form-check-label" for="pendingOrderTrailingStopLoss">Trailing Stop</label>
+										</div>
+								</div>
+								<div class="col">
+									<div class="form-check form-check-inline">
+										<input class="form-check-input" type="checkbox" id="pendingOrderTakeProfit" />
+											<label class="form-check-label" for="pendingOrderTakeProfit">Take Profit</label>
+										</div>
+									<div class="row">
+										<div class="col">
+											<input type="number" class="form-control" id="pendingOrderTakeProfitInput" value="20" min="1" step="1" oninput="isNumberInRange(this)" onkeypress="return isNumeric(event)" disabled="" />
+                                    </div>
+										<div class="col-2 p-1">
+											<label for="pendingOrderTakeProfitInput">Pips</label>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="text-white form-group">
+								<textarea class="form-control" maxlength="100" id="pendingOrderCommenttextarea" rows="3" placeholder="Comment..."></textarea>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-primary" id="orderModalButton"></button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<template id="toast-template">
+		<div class="toast hide" role="alert" aria-live="assertive" aria-atomic="true">
+			<div class="toast-header">
+				<i class="rounded me-2" id="toast-icon"></i>
+				<strong class="me-auto" id="toast-title"></strong>
+				<small id="toast-title-small"></small>
+				<button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+			</div>
+			<div class="toast-body" />
+		</div>
+	</template>
+</body>
+</html>

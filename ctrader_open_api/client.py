@@ -29,17 +29,17 @@ class Client(ClientService):
     def _connected(self, protocol):
         self.isConnected = True
         if hasattr(self, "_connectedCallback"):
-            self._connectedCallback(protocol)
+            self._connectedCallback(self)
 
     def _disconnected(self, reason):
         self.isConnected = False
         self._responseDeferreds.clear()
         if hasattr(self, "_disconnectedCallback"):
-            self._disconnectedCallback(reason)
+            self._disconnectedCallback(self, reason)
 
     def _received(self, message):
         if hasattr(self, "_messageReceivedCallback"):
-            self._messageReceivedCallback(message)
+            self._messageReceivedCallback(self, message)
         if (message.clientMsgId is not None and message.clientMsgId in self._responseDeferreds):
             responseDeferred = self._responseDeferreds[message.clientMsgId]
             self._responseDeferreds.pop(message.clientMsgId)

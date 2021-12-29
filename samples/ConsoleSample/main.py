@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     client = Client(EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
     
-    def connected(_): # Callback for client connection
+    def connected(client): # Callback for client connection
         print("\nConnected")
         request = ProtoOAApplicationAuthReq()
         request.clientId = appClientId
@@ -51,10 +51,10 @@ if __name__ == "__main__":
         deferred = client.send(request)
         deferred.addErrback(onError)
     
-    def disconnected(reason): # Callback for client disconnection
+    def disconnected(client, reason): # Callback for client disconnection
         print("\nDisconnected: ", reason)
     
-    def onMessageReceived(message): # Callback for receiving all messages
+    def onMessageReceived(client, message): # Callback for receiving all messages
         if message.payloadType in [ProtoOASubscribeSpotsRes().payloadType, ProtoOAAccountLogoutRes().payloadType, ProtoHeartbeatEvent().payloadType]:
             return
         elif message.payloadType == ProtoOAApplicationAuthRes().payloadType:
