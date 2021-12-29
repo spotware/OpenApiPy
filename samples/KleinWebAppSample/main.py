@@ -19,8 +19,6 @@ from twisted.web.server import Site
 import sys
 from twisted.python import log
 
-log.startLogging(sys.stdout)
-
 host = "localhost"
 port = 8080
 
@@ -59,35 +57,33 @@ def onError(failure):
     print("Message Error: \n", failure)
 
 def connected(client):
-    clientType = "Live" if client is liveClient else "Demo"
-    print(f"Client {clientType} Connected")
+    print("Client Connected")
     request = ProtoOAApplicationAuthReq()
     request.clientId = credentials["ClientId"]
     request.clientSecret = credentials["Secret"]
-    deferred = client.send(request, clientMsgId = clientType)
-    print(f"App auth sent for client {clientType}")
+    deferred = client.send(request)
     deferred.addErrback(onError)     
 
 def disconnected(client, reason):
-    clientType = "Live" if client is liveClient else "Demo"
-    print(f"Client {clientType} Disconnected, reason: \n", reason)
+    print("Client Disconnected, reason: \n", reason)
 
 def onMessageReceived(client, message):
-    clientType = "Live" if client is liveClient else "Demo"
-    print(f"Client {clientType} Received a Message: \n", message)        
+    print("Client Received a Message: \n", message)        
 
-def setClientCallbacks(client):
-    client.setConnectedCallback(connected)
-    client.setDisconnectedCallback(disconnected)
-    client.setMessageReceivedCallback(onMessageReceived)
+hostType = input("Host (Live/Demo): ")
+hostType = hostType.lower()
 
-demoClient = Client(EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
-setClientCallbacks(demoClient)
-liveClient = Client(EndPoints.PROTOBUF_LIVE_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
-setClientCallbacks(liveClient)
+while hostType != "live" and  hostType != "demo":
+    print(f"{hostType} is not a valid host type.")
+    hostType = input("Host (Live/Demo): ")
 
-#demoClient.startService()
-#liveClient.startService()
+log.startLogging(sys.stdout)
+
+client = Client(EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
+client.setConnectedCallback(connected)
+client.setDisconnectedCallback(disconnected)
+client.setMessageReceivedCallback(onMessageReceived)
+client.startService()
 
 endpoint_description = f"tcp6:port={port}:interface={host}"
 endpoint = endpoints.serverFromString(reactor, endpoint_description)
