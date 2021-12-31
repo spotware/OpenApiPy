@@ -83,8 +83,8 @@ If the message is already sent and the reponse is received then canceling it's d
 
 The client class has some other optional general purpose callbacks that you can use:
 
-* ConnectedCallback(protocol): This callback will be called when client gets connected, use client setConnectedCallback method to assign a callback for it
+* ConnectedCallback(client): This callback will be called when client gets connected, use client setConnectedCallback method to assign a callback for it
 
-* DisconnectedCallback(reason): This callback will be called when client gets disconnected, use client setDisconnectedCallback method to assign a callback for it
+* DisconnectedCallback(client, reason): This callback will be called when client gets disconnected, use client setDisconnectedCallback method to assign a callback for it
 
-* MessageReceivedCallback(message): This callback will be called when a message is received, it's called for all message types, use setMessageReceivedCallback to assign a callback for it
+* MessageReceivedCallback(client, message): This callback will be called when a message is received, it's called for all message types, use setMessageReceivedCallback to assign a callback for it
