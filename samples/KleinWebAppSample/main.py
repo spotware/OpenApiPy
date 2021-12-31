@@ -1,32 +1,29 @@
 #!/usr/bin/env python
 
-from klein import run, route
-from klein import Klein, Plating
+from klein import Klein
 from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
 from ctrader_open_api.endpoints import EndPoints
 from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
-from twisted.web.template import tags, slot, flattenString
-from random import Random
 from templates import AddAccountsElement, ClientAreaElement
 import json
-import os
-from twisted.logger import Logger
 from twisted.internet import endpoints, reactor
 from twisted.web.server import Site
 import sys
 from twisted.python import log
 from twisted.web.static import File
-from twisted.web import resource
 import datetime
+from google.protobuf.json_format import MessageToJson
 
 host = "localhost"
 port = 8080
 
 credentialsFile = open("credentials-dev.json")
 credentials = json.load(credentialsFile)
+token = ""
+currentAccountId = None
 
 auth = Auth(credentials["ClientId"], credentials["Secret"], f"http://{host}:{port}/redirect")
 authUri = auth.getAuthUri()
@@ -50,6 +47,7 @@ def redirect(request):
 
 @app.route('/client-area')
 def clientArea(request):
+    global token
     token = request.args.get(b"token", [None])[0]
     if (token is None or token == b""):
         return "Error: Invalid/Empty Token"
@@ -78,115 +76,123 @@ def disconnected(client, reason):
     print("Client Disconnected, reason: \n", reason)
 
 def onMessageReceived(client, message):
+    if message.payloadType == ProtoHeartbeatEvent().payloadType:
+        return
     print("Client Received a Message: \n", message)        
 
 authorizedAccounts = []
 
 def setAccount(accountId):
-    if accountId in authorizedAccounts:
-        sendProtoOAAccountLogoutReq(accountId)
-    sendProtoOAAccountAuthReq(accountId)
+    global currentAccountId
+    currentAccountId = int(accountId)
+    if accountId not in authorizedAccounts:
+        return sendProtoOAAccountAuthReq(accountId)
+    return "Account changed successfully"
 
 def sendProtoOAVersionReq(clientMsgId = None):
     request = ProtoOAVersionReq()
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAGetAccountListByAccessTokenReq(accessToken, clientMsgId = None):
+def sendProtoOAGetAccountListByAccessTokenReq(clientMsgId = None):
     request = ProtoOAGetAccountListByAccessTokenReq()
-    request.accessToken = accessToken
+    request.accessToken = token
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAAccountLogoutReq(accountId, clientMsgId = None):
+def sendProtoOAAccountLogoutReq(clientMsgId = None):
     request = ProtoOAAccountLogoutReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAAccountAuthReq(accountId, accessToken, clientMsgId = None):
+def sendProtoOAAccountAuthReq(clientMsgId = None):
     request = ProtoOAAccountAuthReq()
-    request.ctidTraderAccountId = accountId
-    request.accessToken = accessToken
+    request.ctidTraderAccountId = currentAccountId
+    request.accessToken = token
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAAssetListReq(accountId, clientMsgId = None):
+def sendProtoOAAssetListReq(clientMsgId = None):
     request = ProtoOAAssetListReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAAssetClassListReq(accountId, clientMsgId = None):
+def sendProtoOAAssetClassListReq(clientMsgId = None):
     request = ProtoOAAssetClassListReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOASymbolCategoryListReq(accountId, clientMsgId = None):
+def sendProtoOASymbolCategoryListReq(clientMsgId = None):
     request = ProtoOASymbolCategoryListReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOASymbolsListReq(accountId, includeArchivedSymbols = False, clientMsgId = None):
+def sendProtoOASymbolsListReq(includeArchivedSymbols = False, clientMsgId = None):
     request = ProtoOASymbolsListReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     request.includeArchivedSymbols = includeArchivedSymbols if type(includeArchivedSymbols) is bool else bool(includeArchivedSymbols)
     deferred = client.send(request)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOATraderReq(accountId, clientMsgId = None):
+def sendProtoOATraderReq(clientMsgId = None):
     request = ProtoOATraderReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAUnsubscribeSpotsReq(accountId, symbolId, clientMsgId = None):
+def sendProtoOAUnsubscribeSpotsReq(symbolId, clientMsgId = None):
     request = ProtoOAUnsubscribeSpotsReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     request.symbolId.append(int(symbolId))
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOASubscribeSpotsReq(accountId, symbolId, timeInSeconds, subscribeToSpotTimestamp	= False, clientMsgId = None):
-    request = ProtoOASubscribeSpotsReq()
-    request.ctidTraderAccountId = accountId
-    request.symbolId.append(int(symbolId))
-    request.subscribeToSpotTimestamp = subscribeToSpotTimestamp if type(subscribeToSpotTimestamp) is bool else bool(subscribeToSpotTimestamp)
-    deferred = client.send(request, clientMsgId = clientMsgId)
-    deferred.addErrback(onError)
-    reactor.callLater(int(timeInSeconds), sendProtoOAUnsubscribeSpotsReq, symbolId)
-
-def sendProtoOAReconcileReq(accountId, clientMsgId = None):
+def sendProtoOAReconcileReq(clientMsgId = None):
     request = ProtoOAReconcileReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAGetTrendbarsReq(accountId, weeks, period, symbolId, clientMsgId = None):
+def sendProtoOAGetTrendbarsReq(weeks, period, symbolId, clientMsgId = None):
     request = ProtoOAGetTrendbarsReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     request.period = ProtoOATrendbarPeriod.Value(period)
     request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(weeks=int(weeks))).timestamp()) * 1000
     request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
     request.symbolId = int(symbolId)
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOAGetTickDataReq(accountId, days, quoteType, symbolId, clientMsgId = None):
+def sendProtoOAGetTickDataReq(days, quoteType, symbolId, clientMsgId = None):
     request = ProtoOAGetTickDataReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     request.type = ProtoOAQuoteType.Value(quoteType.upper())
     request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(days=int(days))).timestamp()) * 1000
     request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
     request.symbolId = int(symbolId)
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOANewOrderReq(accountId, symbolId, orderType, tradeSide, volume, price = None, clientMsgId = None):
+def sendProtoOANewOrderReq(symbolId, orderType, tradeSide, volume, price = None, clientMsgId = None):
     request = ProtoOANewOrderReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     request.symbolId = int(symbolId)
     request.orderType = ProtoOAOrderType.Value(orderType.upper())
     request.tradeSide = ProtoOATradeSide.Value(tradeSide.upper())
@@ -197,30 +203,33 @@ def sendProtoOANewOrderReq(accountId, symbolId, orderType, tradeSide, volume, pr
         request.stopPrice = float(price)
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
 def sendNewMarketOrder(symbolId, tradeSide, volume, clientMsgId = None):
-    sendProtoOANewOrderReq(symbolId, "MARKET", tradeSide, volume, clientMsgId = clientMsgId)
+    return sendProtoOANewOrderReq(symbolId, "MARKET", tradeSide, volume, clientMsgId = clientMsgId)
 
 def sendNewLimitOrder(symbolId, tradeSide, volume, price, clientMsgId = None):
-    sendProtoOANewOrderReq(symbolId, "LIMIT", tradeSide, volume, price, clientMsgId)
+    return sendProtoOANewOrderReq(symbolId, "LIMIT", tradeSide, volume, price, clientMsgId)
 
 def sendNewStopOrder(symbolId, tradeSide, volume, price, clientMsgId = None):
-    sendProtoOANewOrderReq(symbolId, "STOP", tradeSide, volume, price, clientMsgId)
+    return sendProtoOANewOrderReq(symbolId, "STOP", tradeSide, volume, price, clientMsgId)
 
-def sendProtoOAClosePositionReq(accountId, positionId, volume, clientMsgId = None):
+def sendProtoOAClosePositionReq(positionId, volume, clientMsgId = None):
     request = ProtoOAClosePositionReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     request.positionId = int(positionId)
     request.volume = int(volume) * 100
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
-def sendProtoOACancelOrderReq(accountId, orderId, clientMsgId = None):
+def sendProtoOACancelOrderReq(orderId, clientMsgId = None):
     request = ProtoOACancelOrderReq()
-    request.ctidTraderAccountId = accountId
+    request.ctidTraderAccountId = currentAccountId
     request.orderId = int(orderId)
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
+    return deferred
 
 commands = {
         "setAccount": setAccount,
@@ -231,7 +240,6 @@ commands = {
         "ProtoOASymbolCategoryListReq": sendProtoOASymbolCategoryListReq,
         "ProtoOASymbolsListReq": sendProtoOASymbolsListReq,
         "ProtoOATraderReq": sendProtoOATraderReq,
-        "ProtoOASubscribeSpotsReq": sendProtoOASubscribeSpotsReq,
         "ProtoOAReconcileReq": sendProtoOAReconcileReq,
         "ProtoOAGetTrendbarsReq": sendProtoOAGetTrendbarsReq,
         "ProtoOAGetTickDataReq": sendProtoOAGetTickDataReq,
@@ -241,6 +249,12 @@ commands = {
         "ClosePosition": sendProtoOAClosePositionReq,
         "CancelOrder": sendProtoOACancelOrderReq}
 
+def encodeResult(result):
+    if type(result) is str:
+        return f'{{"result": "{result}"}}'.encode(encoding = 'UTF-8')
+    else:
+        return MessageToJson(Protobuf.extract(result)).encode(encoding = 'UTF-8')
+
 @app.route('/get-data')
 def getData(request):
     request.responseHeaders.addRawHeader(b"content-type", b"application/json")
@@ -249,23 +263,25 @@ def getData(request):
     if (token is None or token == b""):
         result = "Invalid Token"
     command = request.args.get(b"command", [None])[0]
-    if (command is None or command == b"" or command not in commands):
-        result = "Invalid Command"
+    if (command is None or command == b""):
+        result = f"Invalid Command: {command}"
+    commandSplit = command.decode('UTF-8').split(" ")
+    print(commandSplit)
+    if (commandSplit[0] not in commands):
+        result = f"Invalid Command: {commandSplit[0]}"
     else:
-        result = commands[command]()
-    return f'{{"result": "{result}"}}'.encode(encoding = 'UTF-8')
-
-#hostType = input("Host (Live/Demo): ")
-hostType = "demo"
-hostType = hostType.lower()
-
-while hostType != "live" and  hostType != "demo":
-    print(f"{hostType} is not a valid host type.")
-    hostType = input("Host (Live/Demo): ")
+        parameters = commandSplit[1:]
+        print(parameters)
+        result = commands[commandSplit[0]](*parameters)
+        result.addCallback(encodeResult)
+    if type(result) is str:
+        result = encodeResult(result)
+    print(result)
+    return result
 
 log.startLogging(sys.stdout)
 
-client = Client(EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
+client = Client(EndPoints.PROTOBUF_LIVE_HOST if credentials["Host"].lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
 client.setConnectedCallback(connected)
 client.setDisconnectedCallback(disconnected)
 client.setMessageReceivedCallback(onMessageReceived)

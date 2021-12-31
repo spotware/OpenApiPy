@@ -40,10 +40,7 @@
 			<p>Commands (Parameters with an * are required):</p>
 			<ul>
 				<li>
-					ProtoOAVersionReq clientMsgId: Returns the API server version
-				</li>
-				<li>
-					setToken *token: For all subsequent requests this token will be used
+					ProtoOAVersionReq: Returns the API server version
 				</li>
 				<li>
 					setAccount *accountId: For all subsequent requests this account will be used
@@ -65,9 +62,6 @@
 				</li>
 				<li>
 					ProtoOATraderReq: Returns the token trader profile
-				</li>
-				<li>
-					ProtoOASubscribeSpotsReq *symbolId *subscriptionTimeSeconds: Subscribes to a symbol quotes for your specified time amount in seconds
 				</li>
 				<li>
 					ProtoOAReconcileReq: Returns the account open positions/orders

@@ -5,11 +5,12 @@ $(document).ready(function () {
 
     $("#sendButton").click(function () {
         $.getJSON(`/get-data?token=${token}&command=${$('#commandInput').val()}`, function (data, status, xhr) {
+            response = "result" in data ? data["result"] : JSON.stringify(data)
             if ($("#outputTextarea").val() == "") {
-                $("#outputTextarea").val(data["result"]).change()
+                $("#outputTextarea").val(response + "\n").change()
             }
             else {
-                $("#outputTextarea").val($("#outputTextarea").val() + "\n" + data["result"]).change()
+                $("#outputTextarea").val($("#outputTextarea").val() + "\n" + response + "\n").change()
             }
         });
     });
