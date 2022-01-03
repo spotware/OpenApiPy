@@ -20,3 +20,5 @@ Then run the "main.py" file.
 Open the "localhost:8080" on your web browser.
 
 You can escape the account authentication if you have already an access token, go to: "localhost:8080/client-area?token=your-access-token"
+
+![Screenshot](screenshot.png)
