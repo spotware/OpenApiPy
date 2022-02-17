@@ -61,8 +61,6 @@ plugins:
   - search
   - minify:
       minify_html: true
-  - literate-nav:
-      nav_file: nav.md
 
 extra:
   generator: false
