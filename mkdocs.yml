@@ -3,17 +3,15 @@
 site_name: OpenApiPy
 site_author: Spotware
 site_url: https://openapinet.readthedocs.io/en/latest/
-site_description: Spotware OpenApiPy Python package documentation
+site_description: cTrader Open API Python package documentation
 
 # Repository information
 repo_name: spotware/openApiPy
 repo_url: https://github.com/spotware/openApiPy
 edit_uri: "https://github.com/spotware/openApiPy/tree/master/docs"
 
-# Copyright
-copyright: Copyright &copy; 2021 Spotware Systems Ltd. cTrader, cAlgo, cBroker, cMirror. All rights reserved.
+copyright: "Copyright &copy; <span id='copyright-year'></span> <a href='https://www.spotware.com/' target='_blank'>Spotware Systems Ltd.</a> cTrader, cAlgo, cBroker, cMirror. All rights reserved."
 
-# Configuration
 theme:
     name: material
     favicon: img/favicon.ico
@@ -25,6 +23,21 @@ theme:
         - navigation.instant
         - navigation.top
         - navigation.tracking
+        - search.highlight
+        - search.share
+        - search.suggest
+        #- navigation.instant
+        #- navigation.top
+        #- navigation.tracking
+        #- navigation.tabs
+        #- navigation.sections
+        ##- navigation.indexes
+        ##- content.code.annotate
+        ## - content.tabs.link
+        ## - header.autohide
+        ## - navigation.expand
+        ## - navigation.instant
+        ## - toc.integrate
     palette:
     - scheme: default
       primary: indigo
@@ -33,8 +46,8 @@ theme:
         icon: material/toggle-switch-off-outline
         name: Switch to dark mode
     - scheme: slate
-      primary: red
-      accent: red
+      primary: indigo
+      accent: indigo
       toggle:
         icon: material/toggle-switch
         name: Switch to light mode
@@ -44,18 +57,18 @@ theme:
     static_templates:
     - 404.html
 
-# Footer
-extra:
-  generator: false
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/spotware
-      name: Spotware on GitHub
-
 plugins:
   - search
   - minify:
       minify_html: true
+  - literate-nav:
+      nav_file: nav.md
+
+extra:
+  generator: false
+
+extra_javascript:
+  - js/extra.js
 
 markdown_extensions:
   - admonition
@@ -91,10 +104,11 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - pymdownx.tabbed:
+      alternate_style: true 
 
 # Page tree
 nav:
