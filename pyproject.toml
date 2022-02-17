@@ -21,7 +21,7 @@ include = [
 [tool.poetry.dependencies]
 python = "^3.8"
 Twisted = "21.7.0"
-protobuf = "3.19.1"
+protobuf = "3.19.4"
 
 [tool.poetry.dev-dependencies]
 Twisted = "21.7.0"
