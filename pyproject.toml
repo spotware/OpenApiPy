@@ -4,7 +4,7 @@
 name = "ctrader_open_api"
 version = "0.0.0"
 homepage = "https://github.com/spotware/openApiPy"
-description = "A Python package for interacting with Spotware Open API"
+description = "A Python package for interacting with cTrader Open API"
 authors = ["Spotware <connect@spotware.com>"]
 documentation = "https://spotware.github.io/OpenApiPy"
 readme = "README.md"
@@ -25,7 +25,7 @@ protobuf = "3.19.1"
 
 [tool.poetry.dev-dependencies]
 Twisted = "21.7.0"
-protobuf = "3.19.1"
+protobuf = "3.19.4"
 
 [tool.black]
 line-length=100
