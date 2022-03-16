@@ -19,6 +19,7 @@ theme:
     include_search_page: false
     search_index_only: true
     language: en
+    custom_dir: overrides
     features:
         - navigation.instant
         - navigation.top
