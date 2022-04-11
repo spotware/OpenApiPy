@@ -10,6 +10,7 @@ from twisted.internet import reactor
 from inputimeout import inputimeout, TimeoutOccurred
 import webbrowser
 import datetime
+import calendar
 
 if __name__ == "__main__":
     currentAccountId = None
@@ -187,8 +188,8 @@ if __name__ == "__main__":
         request = ProtoOAGetTrendbarsReq()
         request.ctidTraderAccountId = currentAccountId
         request.period = ProtoOATrendbarPeriod.Value(period)
-        request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(weeks=int(weeks))).timestamp()) * 1000
-        request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
+        request.fromTimestamp = int(calendar.timegm((datetime.datetime.utcnow() - datetime.timedelta(weeks=int(weeks))).utctimetuple())) * 1000
+        request.toTimestamp = int(calendar.timegm(datetime.datetime.utcnow().utctimetuple())) * 1000
         request.symbolId = int(symbolId)
         deferred = client.send(request, clientMsgId = clientMsgId)
         deferred.addErrback(onError)
@@ -197,8 +198,8 @@ if __name__ == "__main__":
         request = ProtoOAGetTickDataReq()
         request.ctidTraderAccountId = currentAccountId
         request.type = ProtoOAQuoteType.Value(quoteType.upper())
-        request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(days=int(days))).timestamp()) * 1000
-        request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
+        request.fromTimestamp = int(calendar.timegm((datetime.datetime.utcnow() - datetime.timedelta(days=int(days))).utctimetuple())) * 1000
+        request.toTimestamp = int(calendar.timegm(datetime.datetime.utcnow().utctimetuple())) * 1000
         request.symbolId = int(symbolId)
         deferred = client.send(request, clientMsgId = clientMsgId)
         deferred.addErrback(onError)

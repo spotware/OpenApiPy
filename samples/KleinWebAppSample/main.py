@@ -16,6 +16,7 @@ from twisted.python import log
 from twisted.web.static import File
 import datetime
 from google.protobuf.json_format import MessageToJson
+import calendar
 
 host = "localhost"
 port = 8080
@@ -172,8 +173,8 @@ def sendProtoOAGetTrendbarsReq(weeks, period, symbolId, clientMsgId = None):
     request = ProtoOAGetTrendbarsReq()
     request.ctidTraderAccountId = currentAccountId
     request.period = ProtoOATrendbarPeriod.Value(period)
-    request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(weeks=int(weeks))).timestamp()) * 1000
-    request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
+    request.fromTimestamp = int(calendar.timegm((datetime.datetime.utcnow() - datetime.timedelta(weeks=int(weeks))).utctimetuple())) * 1000
+    request.toTimestamp = int(calendar.timegm(datetime.datetime.utcnow().utctimetuple())) * 1000
     request.symbolId = int(symbolId)
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
@@ -183,8 +184,8 @@ def sendProtoOAGetTickDataReq(days, quoteType, symbolId, clientMsgId = None):
     request = ProtoOAGetTickDataReq()
     request.ctidTraderAccountId = currentAccountId
     request.type = ProtoOAQuoteType.Value(quoteType.upper())
-    request.fromTimestamp = int((datetime.datetime.utcnow() - datetime.timedelta(days=int(days))).timestamp()) * 1000
-    request.toTimestamp = int(datetime.datetime.utcnow().timestamp()) * 1000
+    request.fromTimestamp = int(calendar.timegm((datetime.datetime.utcnow() - datetime.timedelta(days=int(days))).utctimetuple())) * 1000
+    request.toTimestamp = int(calendar.timegm(datetime.datetime.utcnow().utctimetuple())) * 1000
     request.symbolId = int(symbolId)
     deferred = client.send(request, clientMsgId = clientMsgId)
     deferred.addErrback(onError)
