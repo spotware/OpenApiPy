@@ -70,7 +70,7 @@ def connected(client):
     request.clientId = credentials["ClientId"]
     request.clientSecret = credentials["Secret"]
     deferred = client.send(request)
-    deferred.addErrback(onError)     
+    deferred.addErrback(onError)
 
 def disconnected(client, reason):
     print("Client Disconnected, reason: \n", reason)
@@ -78,7 +78,7 @@ def disconnected(client, reason):
 def onMessageReceived(client, message):
     if message.payloadType == ProtoHeartbeatEvent().payloadType:
         return
-    print("Client Received a Message: \n", message)        
+    print("Client Received a Message: \n", message)
 
 authorizedAccounts = []
 
@@ -231,23 +231,55 @@ def sendProtoOACancelOrderReq(orderId, clientMsgId = None):
     deferred.addErrback(onError)
     return deferred
 
+def sendProtoOADealOffsetListReq(dealId, clientMsgId=None):
+    request = ProtoOADealOffsetListReq()
+    request.ctidTraderAccountId = currentAccountId
+    request.dealId = int(dealId)
+    deferred = client.send(request, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
+def sendProtoOAGetPositionUnrealizedPnLReq(clientMsgId=None):
+    request = ProtoOAGetPositionUnrealizedPnLReq()
+    request.ctidTraderAccountId = currentAccountId
+    deferred = client.send(request, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
+def sendProtoOAOrderDetailsReq(orderId, clientMsgId=None):
+    request = ProtoOAOrderDetailsReq()
+    request.ctidTraderAccountId = currentAccountId
+    request.orderId = int(orderId)
+    deferred = client.send(request, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
+def sendProtoOAOrderListByPositionIdReq(positionId, fromTimestamp=None, toTimestamp=None, clientMsgId=None):
+    request = ProtoOAOrderListByPositionIdReq()
+    request.ctidTraderAccountId = currentAccountId
+    request.positionId = int(positionId)
+    deferred = client.send(request, fromTimestamp=fromTimestamp, toTimestamp=toTimestamp, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
 commands = {
-        "setAccount": setAccount,
-        "ProtoOAVersionReq": sendProtoOAVersionReq,
-        "ProtoOAGetAccountListByAccessTokenReq": sendProtoOAGetAccountListByAccessTokenReq,
-        "ProtoOAAssetListReq": sendProtoOAAssetListReq,
-        "ProtoOAAssetClassListReq": sendProtoOAAssetClassListReq,
-        "ProtoOASymbolCategoryListReq": sendProtoOASymbolCategoryListReq,
-        "ProtoOASymbolsListReq": sendProtoOASymbolsListReq,
-        "ProtoOATraderReq": sendProtoOATraderReq,
-        "ProtoOAReconcileReq": sendProtoOAReconcileReq,
-        "ProtoOAGetTrendbarsReq": sendProtoOAGetTrendbarsReq,
-        "ProtoOAGetTickDataReq": sendProtoOAGetTickDataReq,
-        "NewMarketOrder": sendNewMarketOrder,
-        "NewLimitOrder": sendNewLimitOrder,
-        "NewStopOrder": sendNewStopOrder,
-        "ClosePosition": sendProtoOAClosePositionReq,
-        "CancelOrder": sendProtoOACancelOrderReq}
+    "setAccount": setAccount,
+    "ProtoOAVersionReq": sendProtoOAVersionReq,
+    "ProtoOAGetAccountListByAccessTokenReq": sendProtoOAGetAccountListByAccessTokenReq,
+    "ProtoOAAssetListReq": sendProtoOAAssetListReq,
+    "ProtoOAAssetClassListReq": sendProtoOAAssetClassListReq,
+    "ProtoOASymbolCategoryListReq": sendProtoOASymbolCategoryListReq,
+    "ProtoOASymbolsListReq": sendProtoOASymbolsListReq,
+    "ProtoOATraderReq": sendProtoOATraderReq,
+    "ProtoOAReconcileReq": sendProtoOAReconcileReq,
+    "ProtoOAGetTrendbarsReq": sendProtoOAGetTrendbarsReq,
+    "ProtoOAGetTickDataReq": sendProtoOAGetTickDataReq,
+    "NewMarketOrder": sendNewMarketOrder,
+    "NewLimitOrder": sendNewLimitOrder,
+    "NewStopOrder": sendNewStopOrder,
+    "ClosePosition": sendProtoOAClosePositionReq,
+    "CancelOrder": sendProtoOACancelOrderReq,
+    "DealOffsetList": sendProtoOADealOffsetListReq,
+    "GetPositionUnrealizedPnL": sendProtoOAGetPositionUnrealizedPnLReq,
+    "OrderDetails": sendProtoOAOrderDetailsReq,
+    "OrderListByPositionId": sendProtoOAOrderListByPositionIdReq,
+}
 
 def encodeResult(result):
     if type(result) is str:
