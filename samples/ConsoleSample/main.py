@@ -96,6 +96,10 @@ if __name__ == "__main__":
         print("NewStopOrder *symbolId *tradeSide *volume *price clientMsgId")
         print("ClosePosition *positionId *volume clientMsgId")
         print("CancelOrder *orderId clientMsgId")
+        print("DealOffsetList *dealId clientMsgId")
+        print("GetPositionUnrealizedPnL clientMsgId")
+        print("OrderDetails clientMsgId")
+        print("OrderListByPositionId *positionId fromTimestamp toTimestamp clientMsgId")
 
         reactor.callLater(3, callable=executeUserCommand)
 
@@ -296,7 +300,7 @@ if __name__ == "__main__":
     def executeUserCommand():
         try:
             print("\n")
-            userInput = inputimeout("Command (ex help): ", timeout=180)
+            userInput = inputimeout("Command (ex help): ", timeout=18)
         except TimeoutOccurred:
             print("Command Input Timeout")
             reactor.callLater(3, callable=executeUserCommand)
