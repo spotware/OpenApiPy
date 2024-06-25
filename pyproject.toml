@@ -20,12 +20,18 @@ include = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-Twisted = "21.7.0"
+Twisted = "24.3.0"
+pyOpenSSL = "24.1.0"
 protobuf = "3.20.1"
+requests = "2.32.3"
+inputimeout = "1.0.4"
 
 [tool.poetry.dev-dependencies]
-Twisted = "21.7.0"
+Twisted = "24.3.0"
+pyOpenSSL = "24.1.0"
 protobuf = "3.20.1"
+requests = "2.32.3"
+inputimeout = "1.0.4"
 
 [tool.black]
 line-length=100
@@ -41,5 +47,5 @@ addopts = "--cov=ctrader_openApiPy --cov-branch --cov-report term-missing  -vv -
 python_files = "tests.py test_*.py *_tests.py"
 
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core>=1.0.8"]
+build-backend = "poetry.core.masonry.api"

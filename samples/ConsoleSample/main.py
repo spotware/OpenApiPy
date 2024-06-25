@@ -42,7 +42,7 @@ if __name__ == "__main__":
         accessToken = input("Access Token: ")
 
     client = Client(EndPoints.PROTOBUF_LIVE_HOST if hostType.lower() == "live" else EndPoints.PROTOBUF_DEMO_HOST, EndPoints.PROTOBUF_PORT, TcpProtocol)
-    
+
     def connected(client): # Callback for client connection
         print("\nConnected")
         request = ProtoOAApplicationAuthReq()
@@ -50,10 +50,10 @@ if __name__ == "__main__":
         request.clientSecret = appClientSecret
         deferred = client.send(request)
         deferred.addErrback(onError)
-    
+
     def disconnected(client, reason): # Callback for client disconnection
         print("\nDisconnected: ", reason)
-    
+
     def onMessageReceived(client, message): # Callback for receiving all messages
         if message.payloadType in [ProtoOASubscribeSpotsRes().payloadType, ProtoOAAccountLogoutRes().payloadType, ProtoHeartbeatEvent().payloadType]:
             return
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         else:
             print("Message received: \n", Protobuf.extract(message))
         reactor.callLater(3, callable=executeUserCommand)
-    
+
     def onError(failure): # Call back for errors
         print("Message Error: ", failure)
         reactor.callLater(3, callable=executeUserCommand)
@@ -96,6 +96,10 @@ if __name__ == "__main__":
         print("NewStopOrder *symbolId *tradeSide *volume *price clientMsgId")
         print("ClosePosition *positionId *volume clientMsgId")
         print("CancelOrder *orderId clientMsgId")
+        print("DealOffsetList *dealId clientMsgId")
+        print("GetPositionUnrealizedPnL clientMsgId")
+        print("OrderDetails clientMsgId")
+        print("OrderListByPositionId *positionId fromTimestamp toTimestamp clientMsgId")
 
         reactor.callLater(3, callable=executeUserCommand)
 
@@ -241,6 +245,33 @@ if __name__ == "__main__":
         deferred = client.send(request, clientMsgId = clientMsgId)
         deferred.addErrback(onError)
 
+    def sendProtoOADealOffsetListReq(dealId, clientMsgId=None):
+        request = ProtoOADealOffsetListReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.dealId = int(dealId)
+        deferred = client.send(request, clientMsgId=clientMsgId)
+        deferred.addErrback(onError)
+
+    def sendProtoOAGetPositionUnrealizedPnLReq(clientMsgId=None):
+        request = ProtoOAGetPositionUnrealizedPnLReq()
+        request.ctidTraderAccountId = currentAccountId
+        deferred = client.send(request, clientMsgId=clientMsgId)
+        deferred.addErrback(onError)
+
+    def sendProtoOAOrderDetailsReq(orderId, clientMsgId=None):
+        request = ProtoOAOrderDetailsReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.orderId = int(orderId)
+        deferred = client.send(request, clientMsgId=clientMsgId)
+        deferred.addErrback(onError)
+
+    def sendProtoOAOrderListByPositionIdReq(positionId, fromTimestamp=None, toTimestamp=None, clientMsgId=None):
+        request = ProtoOAOrderListByPositionIdReq()
+        request.ctidTraderAccountId = currentAccountId
+        request.positionId = int(positionId)
+        deferred = client.send(request, fromTimestamp=fromTimestamp, toTimestamp=toTimestamp, clientMsgId=clientMsgId)
+        deferred.addErrback(onError)
+
     commands = {
         "help": showHelp,
         "setAccount": setAccount,
@@ -259,7 +290,12 @@ if __name__ == "__main__":
         "NewLimitOrder": sendNewLimitOrder,
         "NewStopOrder": sendNewStopOrder,
         "ClosePosition": sendProtoOAClosePositionReq,
-        "CancelOrder": sendProtoOACancelOrderReq}
+        "CancelOrder": sendProtoOACancelOrderReq,
+        "DealOffsetList": sendProtoOADealOffsetListReq,
+        "GetPositionUnrealizedPnL": sendProtoOAGetPositionUnrealizedPnLReq,
+        "OrderDetails": sendProtoOAOrderDetailsReq,
+        "OrderListByPositionId": sendProtoOAOrderListByPositionIdReq,
+    }
 
     def executeUserCommand():
         try:
