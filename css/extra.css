@@ -1,0 +1,65 @@
+@font-face {
+    font-family: "TitilliumWeb-Regular";
+    src: url(../fonts/TitilliumWeb-Regular.ttf);
+}
+
+@font-face {
+    font-family: "TitilliumWeb-SemiBold";
+    src: url(../fonts/TitilliumWeb-SemiBold.ttf);
+}
+
+h1 {
+    font-family: "TitilliumWeb-SemiBold";
+}
+
+h2 {
+    font-family: "TitilliumWeb-SemiBold";
+}
+
+:root > * {
+    --md-primary-fg-color: #292929;
+    --md-primary-fg-color--light: #292929;
+    --md-primary-fg-color--dark: #3C3C3C;
+    --md-primary-bg-color: hsla(0, 0%, 100%, 1);
+    --md-primary-bg-color--light: hsla(0, 0%, 100%, 0.7);
+    --md-typeset-a-color: #009345;
+    --md-text-font: "TitilliumWeb-Regular";
+}
+
+[data-md-color-scheme="slate"] {
+    --md-hue: 232;
+    --md-default-fg-color: hsla(var(--md-hue),75%,95%,1);
+    --md-default-fg-color--light: hsla(var(--md-hue),75%,90%,0.62);
+    --md-default-fg-color--lighter: hsla(var(--md-hue),75%,90%,0.32);
+    --md-default-fg-color--lightest: hsla(var(--md-hue),75%,90%,0.12);
+    --md-default-bg-color: hsl(0, 0%, 24%);
+    --md-default-bg-color--light: hsla(var(--md-hue),15%,21%,0.54);
+    --md-default-bg-color--lighter: hsla(var(--md-hue),15%,21%,0.26);
+    --md-default-bg-color--lightest: hsla(var(--md-hue),15%,21%,0.07);
+    --md-code-fg-color: hsla(var(--md-hue),18%,86%,1);
+    --md-code-bg-color: hsla(var(--md-hue),15%,15%,1);
+    --md-code-hl-color: rgba(66,135,255,.15);
+    --md-code-hl-number-color: #e6695b;
+    --md-code-hl-special-color: #f06090;
+    --md-code-hl-function-color: #c973d9;
+    --md-code-hl-constant-color: #9383e2;
+    --md-code-hl-keyword-color: #6791e0;
+    --md-code-hl-string-color: #2fb170;
+    --md-code-hl-name-color: var(--md-code-fg-color);
+    --md-code-hl-operator-color: var(--md-default-fg-color--light);
+    --md-code-hl-punctuation-color: var(--md-default-fg-color--light);
+    --md-code-hl-comment-color: var(--md-default-fg-color--light);
+    --md-code-hl-generic-color: var(--md-default-fg-color--light);
+    --md-code-hl-variable-color: var(--md-default-fg-color--light);
+    --md-typeset-color: var(--md-default-fg-color);
+    --md-typeset-a-color: #009345;
+    --md-typeset-mark-color: rgba(66,135,255,.3);
+    --md-typeset-kbd-color: hsla(var(--md-hue),15%,94%,0.12);
+    --md-typeset-kbd-accent-color: hsla(var(--md-hue),15%,94%,0.2);
+    --md-typeset-kbd-border-color: hsla(var(--md-hue),15%,14%,1);
+    --md-typeset-table-color: hsla(var(--md-hue),75%,95%,0.12);
+    --md-admonition-bg-color: hsla(var(--md-hue),0%,100%,0.025);
+    --md-footer-bg-color: #292929;
+    --md-footer-bg-color--dark: #3C3C3C;
+    
+}
