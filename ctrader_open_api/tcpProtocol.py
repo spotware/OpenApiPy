@@ -1,30 +1,26 @@
-#!/usr/bin/env python
-
+import asyncio
 from collections import deque
-from twisted.protocols.basic import Int32StringReceiver
-from twisted.internet import task
 from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoMessage, ProtoHeartbeatEvent
 import datetime
 
-class TcpProtocol(Int32StringReceiver):
+
+class TcpProtocol(asyncio.Protocol):
     MAX_LENGTH = 15000000
     _send_queue = deque([])
     _send_task = None
     _lastSendMessageTime = None
 
-    def connectionMade(self):
-        super().connectionMade()
+    def connection_made(self, transport):
+        self.transport = transport
 
         if not self._send_task:
-            self._send_task = task.LoopingCall(self._sendStrings)
-        self._send_task.start(1)
+            self._send_task = asyncio.create_task(self._send_strings())
         self.factory.connected(self)
 
-    def connectionLost(self, reason):
-        super().connectionLost(reason)
-        if self._send_task.running:
-            self._send_task.stop()
-        self.factory.disconnected(reason)
+    def connection_lost(self, exc):
+        if self._send_task:
+            self._send_task.cancel()
+        self.factory.disconnected(exc)
 
     def heartbeat(self):
         self.send(ProtoHeartbeatEvent(), True)
@@ -45,27 +41,29 @@ class TcpProtocol(Int32StringReceiver):
             data = msg.SerializeToString()
 
         if instant:
-            self.sendString(data)
+            self.transport.write(data)
             self._lastSendMessageTime = datetime.datetime.now()
         else:
             self._send_queue.append((isCanceled, data))
 
-    def _sendStrings(self):
-        size = len(self._send_queue)
+    async def _send_strings(self):
+        while True:
+            await asyncio.sleep(1)
+            size = len(self._send_queue)
 
-        if not size:
-            if self._lastSendMessageTime is None or (datetime.datetime.now() - self._lastSendMessageTime).total_seconds() > 20:
-                self.heartbeat()
-            return
+            if not size:
+                if self._lastSendMessageTime is None or (datetime.datetime.now() - self._lastSendMessageTime).total_seconds() > 20:
+                    self.heartbeat()
+                continue
 
-        for _ in range(min(size, self.factory.numberOfMessagesToSendPerSecond)):
-            isCanceled, data = self._send_queue.popleft()
-            if isCanceled is not None and isCanceled():
-                continue;
-            self.sendString(data)
-        self._lastSendMessageTime = datetime.datetime.now()
+            for _ in range(min(size, self.factory.numberOfMessagesToSendPerSecond)):
+                isCanceled, data = self._send_queue.popleft()
+                if isCanceled is not None and isCanceled():
+                    continue
+                self.transport.write(data)
+            self._lastSendMessageTime = datetime.datetime.now()
 
-    def stringReceived(self, data):
+    def data_received(self, data):
         msg = ProtoMessage()
         msg.ParseFromString(data)
 
