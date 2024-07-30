@@ -36,7 +36,6 @@ class TcpProtocol(asyncio.Protocol):
         self.transport = transport
         if self._send_task is None:
             self._send_task = asyncio.create_task(self._send_strings())
-        # self._send_task = asyncio.create_task(self._send_strings())
         asyncio.create_task(self.client.connected(self))
 
     def connection_lost(self, exc):
@@ -46,7 +45,6 @@ class TcpProtocol(asyncio.Protocol):
 
         if self._send_task:
             self._send_task.cancel()
-        # self._send_task.cancel()
         print(f'connection lost: {exc}')
         asyncio.create_task(self.client.disconnected(exc))
 
@@ -88,7 +86,6 @@ class TcpProtocol(asyncio.Protocol):
                     datetime.datetime.now() - self._last_send_message_time).total_seconds() > 20:
                     self.heartbeat()
                 await asyncio.sleep(2)
-                # await asyncio.sleep(0.5)
                 continue
 
             for _ in range(min(len(self._send_queue), self.client.number_of_messages_to_send_per_second)):
@@ -177,19 +174,12 @@ class Client:
 
         await asyncio.sleep(1)
 
-        # print(f'send protocol: {self.protocol}')
-        # await self.protocol.send(message, clientMsgId=clientMsgId,
-        #                    is_canceled=lambda: clientMsgId not in self._response_deferreds)
-
-        # await asyncio.sleep(1)
-
         try:
 
             await self._send_message(message, clientMsgId=clientMsgId)
 
-
             if response_future.done():
-                response = response_future.result()  # Get the result if available
+                response = response_future.result()
             else:
                 response = await asyncio.wait_for(response_future, timeout=response_timeout_in_seconds)
 
@@ -605,7 +595,7 @@ async def main():
     client.setMessageReceivedCallback(onMessageReceived)
 
     await client.start()
-    # await asyncio.sleep(3)
+    await asyncio.sleep(3)
     await executeUserCommand()
 
 if __name__ == "__main__":
