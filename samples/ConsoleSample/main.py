@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
-import calendar
-import datetime
-import webbrowser
-
-from inputimeout import TimeoutOccurred, inputimeout
-from twisted.internet import reactor
-
-from ctrader_open_api import Auth, Client, Protobuf, TcpProtocol
+from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
 from ctrader_open_api.endpoints import EndPoints
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
+from twisted.internet import reactor
+from inputimeout import inputimeout, TimeoutOccurred
+import webbrowser
+import datetime
+import calendar
 
 if __name__ == "__main__":
     currentAccountId = None

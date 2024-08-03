@@ -1,20 +1,21 @@
 #!/usr/bin/env python
 
-import calendar
-import datetime
-import json
-import sys
-
-from google.protobuf.json_format import MessageToJson
 from klein import Klein
-from twisted.internet import endpoints, reactor
-from twisted.python import log
-from twisted.web.server import Site
-from twisted.web.static import File
-
-from ctrader_open_api import Auth, Client, Protobuf, TcpProtocol
+from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
 from ctrader_open_api.endpoints import EndPoints
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiMessages_pb2 import *
+from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
 from templates import AddAccountsElement, ClientAreaElement
+import json
+from twisted.internet import endpoints, reactor
+from twisted.web.server import Site
+import sys
+from twisted.python import log
+from twisted.web.static import File
+import datetime
+from google.protobuf.json_format import MessageToJson
+import calendar
 
 host = "localhost"
 port = 8080
