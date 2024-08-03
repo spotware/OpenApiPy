@@ -316,7 +316,7 @@ if __name__ == "__main__":
     def executeUserCommand():
         try:
             print("\n")
-            userInput = inputimeout("Command (ex help): ", timeout=180)
+            userInput = inputimeout("Command (ex help): ", timeout=18)
         except TimeoutOccurred:
             print("Command Input Timeout")
             reactor.callLater(3, callable=executeUserCommand)
