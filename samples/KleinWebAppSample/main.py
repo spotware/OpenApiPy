@@ -8,7 +8,9 @@ import sys
 from google.protobuf.json_format import MessageToJson
 from klein import Klein
 from twisted.internet import endpoints, reactor
+from twisted.python import log
 from twisted.web.server import Site
+from twisted.web.static import File
 
 from ctrader_open_api import Auth, Client, Protobuf, TcpProtocol
 from ctrader_open_api.endpoints import EndPoints
