@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import calendar
 import datetime
 import webbrowser
 
