@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 
-from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
-from ctrader_open_api.endpoints import EndPoints
-from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
-from ctrader_open_api.messages.OpenApiMessages_pb2 import *
-from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
-from twisted.internet import reactor
-from inputimeout import inputimeout, TimeoutOccurred
-import webbrowser
-import datetime
 import calendar
+import datetime
+import webbrowser
+
+from inputimeout import TimeoutOccurred, inputimeout
+from twisted.internet import reactor
+
+from ctrader_open_api import Auth, Client, Protobuf, TcpProtocol
+from ctrader_open_api.endpoints import EndPoints
 
 if __name__ == "__main__":
     currentAccountId = None
@@ -100,6 +99,8 @@ if __name__ == "__main__":
         print("GetPositionUnrealizedPnL clientMsgId")
         print("OrderDetails clientMsgId")
         print("OrderListByPositionId *positionId fromTimestamp toTimestamp clientMsgId")
+        print("PnLChangeUnSubscribeReq clientMsgId")
+        print("PnLChangeSubscribeReq clientMsgId")
 
         reactor.callLater(3, callable=executeUserCommand)
 
@@ -272,6 +273,20 @@ if __name__ == "__main__":
         deferred = client.send(request, fromTimestamp=fromTimestamp, toTimestamp=toTimestamp, clientMsgId=clientMsgId)
         deferred.addErrback(onError)
 
+
+    def sendProtoOAv1PnLChangeSubscribeReq(clientMsgId=None):
+        request = ProtoOAv1PnLChangeSubscribeReq()
+        request.ctidTraderAccountId = currentAccountId
+        deferred = client.send(request, clientMsgId=clientMsgId)
+        deferred.addErrback(onError)
+
+
+    def sendProtoOAv1PnLChangeUnSubscribeReq(clientMsgId=None):
+        request = ProtoOAv1PnLChangeUnSubscribeReq()
+        request.ctidTraderAccountId = currentAccountId
+        deferred = client.send(request, clientMsgId=clientMsgId)
+        deferred.addErrback(onError)
+
     commands = {
         "help": showHelp,
         "setAccount": setAccount,
@@ -295,12 +310,14 @@ if __name__ == "__main__":
         "GetPositionUnrealizedPnL": sendProtoOAGetPositionUnrealizedPnLReq,
         "OrderDetails": sendProtoOAOrderDetailsReq,
         "OrderListByPositionId": sendProtoOAOrderListByPositionIdReq,
+        "PnLChangeSubscribeReq": sendProtoOAv1PnLChangeSubscribeReq,
+        "PnLChangeUnSubscribeReq": sendProtoOAv1PnLChangeUnSubscribeReq,
     }
 
     def executeUserCommand():
         try:
             print("\n")
-            userInput = inputimeout("Command (ex help): ", timeout=18)
+            userInput = inputimeout("Command (ex help): ", timeout=180)
         except TimeoutOccurred:
             print("Command Input Timeout")
             reactor.callLater(3, callable=executeUserCommand)

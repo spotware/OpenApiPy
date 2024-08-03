@@ -1,21 +1,20 @@
 #!/usr/bin/env python
 
-from klein import Klein
-from ctrader_open_api import Client, Protobuf, TcpProtocol, Auth, EndPoints
-from ctrader_open_api.endpoints import EndPoints
-from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
-from ctrader_open_api.messages.OpenApiMessages_pb2 import *
-from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
-from templates import AddAccountsElement, ClientAreaElement
-import json
-from twisted.internet import endpoints, reactor
-from twisted.web.server import Site
-import sys
-from twisted.python import log
-from twisted.web.static import File
-import datetime
-from google.protobuf.json_format import MessageToJson
 import calendar
+import datetime
+import json
+import sys
+
+from google.protobuf.json_format import MessageToJson
+from klein import Klein
+from twisted.internet import endpoints, reactor
+from twisted.python import log
+from twisted.web.server import Site
+from twisted.web.static import File
+
+from ctrader_open_api import Auth, Client, Protobuf, TcpProtocol
+from ctrader_open_api.endpoints import EndPoints
+from templates import AddAccountsElement, ClientAreaElement
 
 host = "localhost"
 port = 8080
@@ -258,6 +257,20 @@ def sendProtoOAOrderListByPositionIdReq(positionId, fromTimestamp=None, toTimest
     deferred = client.send(request, fromTimestamp=fromTimestamp, toTimestamp=toTimestamp, clientMsgId=clientMsgId)
     deferred.addErrback(onError)
 
+
+def sendProtoOAv1PnLChangeSubscribeReq(clientMsgId=None):
+    request = ProtoOAv1PnLChangeSubscribeReq()
+    request.ctidTraderAccountId = currentAccountId
+    deferred = client.send(request, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
+
+def sendProtoOAv1PnLChangeUnSubscribeReq(clientMsgId=None):
+    request = ProtoOAv1PnLChangeUnSubscribeReq()
+    request.ctidTraderAccountId = currentAccountId
+    deferred = client.send(request, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
 commands = {
     "setAccount": setAccount,
     "ProtoOAVersionReq": sendProtoOAVersionReq,
@@ -279,6 +292,8 @@ commands = {
     "GetPositionUnrealizedPnL": sendProtoOAGetPositionUnrealizedPnLReq,
     "OrderDetails": sendProtoOAOrderDetailsReq,
     "OrderListByPositionId": sendProtoOAOrderListByPositionIdReq,
+    "PnLChangeSubscribeReq": sendProtoOAv1PnLChangeSubscribeReq,
+    "PnLChangeUnSubscribeReq": sendProtoOAv1PnLChangeUnSubscribeReq,
 }
 
 def encodeResult(result):
