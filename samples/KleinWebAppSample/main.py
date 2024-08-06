@@ -258,6 +258,20 @@ def sendProtoOAOrderListByPositionIdReq(positionId, fromTimestamp=None, toTimest
     deferred = client.send(request, fromTimestamp=fromTimestamp, toTimestamp=toTimestamp, clientMsgId=clientMsgId)
     deferred.addErrback(onError)
 
+
+def sendProtoOAv1PnLChangeSubscribeReq(clientMsgId=None):
+    request = ProtoOAv1PnLChangeSubscribeReq()
+    request.ctidTraderAccountId = currentAccountId
+    deferred = client.send(request, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
+
+def sendProtoOAv1PnLChangeUnSubscribeReq(clientMsgId=None):
+    request = ProtoOAv1PnLChangeUnSubscribeReq()
+    request.ctidTraderAccountId = currentAccountId
+    deferred = client.send(request, clientMsgId=clientMsgId)
+    deferred.addErrback(onError)
+
 commands = {
     "setAccount": setAccount,
     "ProtoOAVersionReq": sendProtoOAVersionReq,
@@ -279,6 +293,8 @@ commands = {
     "GetPositionUnrealizedPnL": sendProtoOAGetPositionUnrealizedPnLReq,
     "OrderDetails": sendProtoOAOrderDetailsReq,
     "OrderListByPositionId": sendProtoOAOrderListByPositionIdReq,
+    "PnLChangeSubscribeReq": sendProtoOAv1PnLChangeSubscribeReq,
+    "PnLChangeUnSubscribeReq": sendProtoOAv1PnLChangeUnSubscribeReq,
 }
 
 def encodeResult(result):
