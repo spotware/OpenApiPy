@@ -100,8 +100,6 @@ if __name__ == "__main__":
         print("GetPositionUnrealizedPnL clientMsgId")
         print("OrderDetails clientMsgId")
         print("OrderListByPositionId *positionId fromTimestamp toTimestamp clientMsgId")
-        print("PnLChangeUnSubscribeReq clientMsgId")
-        print("PnLChangeSubscribeReq clientMsgId")
 
         reactor.callLater(3, callable=executeUserCommand)
 
@@ -274,20 +272,6 @@ if __name__ == "__main__":
         deferred = client.send(request, fromTimestamp=fromTimestamp, toTimestamp=toTimestamp, clientMsgId=clientMsgId)
         deferred.addErrback(onError)
 
-
-    def sendProtoOAv1PnLChangeSubscribeReq(clientMsgId=None):
-        request = ProtoOAv1PnLChangeSubscribeReq()
-        request.ctidTraderAccountId = currentAccountId
-        deferred = client.send(request, clientMsgId=clientMsgId)
-        deferred.addErrback(onError)
-
-
-    def sendProtoOAv1PnLChangeUnSubscribeReq(clientMsgId=None):
-        request = ProtoOAv1PnLChangeUnSubscribeReq()
-        request.ctidTraderAccountId = currentAccountId
-        deferred = client.send(request, clientMsgId=clientMsgId)
-        deferred.addErrback(onError)
-
     commands = {
         "help": showHelp,
         "setAccount": setAccount,
@@ -311,8 +295,6 @@ if __name__ == "__main__":
         "GetPositionUnrealizedPnL": sendProtoOAGetPositionUnrealizedPnLReq,
         "OrderDetails": sendProtoOAOrderDetailsReq,
         "OrderListByPositionId": sendProtoOAOrderListByPositionIdReq,
-        "PnLChangeSubscribeReq": sendProtoOAv1PnLChangeSubscribeReq,
-        "PnLChangeUnSubscribeReq": sendProtoOAv1PnLChangeUnSubscribeReq,
     }
 
     def executeUserCommand():
