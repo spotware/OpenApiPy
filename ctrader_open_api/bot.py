@@ -215,19 +215,33 @@ class Bot:
 
         def on_app_auth_response(message):
             """Handle application auth response"""
-            print("Application authenticated successfully")
+            if message.payloadType == ProtoOAApplicationAuthRes().payloadType:
+                self.trade_client._is_app_authorized = True
+                print("Application authenticated successfully")
 
-            # Now perform account authentication
-            account_request = ProtoOAAccountAuthReq()
-            account_request.ctidTraderAccountId = account_id
-            account_request.accessToken = account_token
+                # Now perform account authentication
+                account_request = ProtoOAAccountAuthReq()
+                account_request.ctidTraderAccountId = account_id
+                account_request.accessToken = account_token
 
-            account_deferred = self._client.send(account_request)
-            account_deferred.addCallback(on_account_auth_response)
+                account_deferred = self._client.send(account_request)
+                account_deferred.addCallback(on_account_auth_response)
+                account_deferred.addErrback(on_auth_error)
+            else:
+                print("Application authentication failed - unexpected response type")
 
         def on_account_auth_response(message):
             """Handle account auth response"""
-            print(f"Account {account_id} authenticated successfully")
+            if message.payloadType == ProtoOAAccountAuthRes().payloadType:
+                self.trade_client._is_account_authorized = True
+                self.trade_client._account_id = account_id
+                print(f"Account {account_id} authenticated successfully")
+            else:
+                print("Account authentication failed - unexpected response type")
+
+        def on_auth_error(failure):
+            """Handle authentication errors"""
+            print(f"Authentication error: {failure}")
 
         # First perform application authentication
         app_request = ProtoOAApplicationAuthReq()
@@ -236,6 +250,7 @@ class Bot:
 
         app_deferred = self._client.send(app_request)
         app_deferred.addCallback(on_app_auth_response)
+        app_deferred.addErrback(on_auth_error)
 
     @property
     def is_running(self):
