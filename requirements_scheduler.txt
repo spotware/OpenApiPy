@@ -1,0 +1,15 @@
+# Requirements for the scheduled trading bot
+# Install with: pip install -r requirements_scheduler.txt
+
+# Core dependencies (already in main project)
+twisted>=23.10.0
+protobuf>=4.25.0
+
+# Additional dependencies for scheduling
+schedule>=1.2.0
+
+# Optional: Enhanced logging and monitoring
+colorlog>=6.8.0
+
+# Optional: For notifications (Telegram, email, etc.)
+requests>=2.31.0
