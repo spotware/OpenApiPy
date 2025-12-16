@@ -2,7 +2,7 @@
 
 
 from typing import Dict
-from venv import logger
+import logging
 from ctrader_open_api import Client, TcpProtocol, EndPoints
 from ctrader_open_api.trade_client import TradeClient
 from ctrader_open_api.protobuf import Protobuf
@@ -44,9 +44,7 @@ class Bot:
         # Set up event callbacks
         self._client._connectedCallback = self._on_connected
         self._client._disconnectedCallback = self._on_disconnected
-        self._client.setMessageReceivedCallback(self._on_message_received)
-
-        self.subscribe_to_ticks("XAUUSD", True)
+        self._client._messageReceivedCallback = self._on_message_received
 
         # Internal state
         self._is_running = False
@@ -88,6 +86,10 @@ class Bot:
 
     def _on_message_received(self, client, message):
         """Internal callback for processing incoming messages."""
+        # Filter out heartbeat messages (payloadType 51)
+        if message.payloadType == 51:  # ProtoHeartbeatEvent
+            return
+
         # Handle different message types
         if message.payloadType == ProtoOASpotEvent().payloadType:
             # Tick data received
@@ -99,8 +101,9 @@ class Bot:
             trendbar_response = Protobuf.extract(message)
             self.on_bar(trendbar_response)
 
-        # Handle other message types
-        self.on_message(message)
+        else:
+            # Handle other message types (but not heartbeats)
+            self.on_message(message)
 
     # Override these methods in your bot implementation
     def on_connected(self):
@@ -129,7 +132,15 @@ class Bot:
         Args:
             spot_event: ProtoOASpotEvent message containing tick data
         """
-        print("on_tick")
+        if spot_event:
+            # Display useful tick information
+            print(f"📈 Tick received - Symbol ID: {spot_event.symbolId}")
+            if hasattr(spot_event, 'bid') and hasattr(spot_event, 'ask'):
+                print(f"   Bid: {spot_event.bid/1e5:.5f}, Ask: {spot_event.ask/1e5:.5f}")
+            if hasattr(spot_event, 'timestamp'):
+                print(f"   Timestamp: {spot_event.timestamp}")
+        else:
+            print("on_tick - no data")
 
     def on_bar(self, trendbar_response=None):
         """
@@ -255,6 +266,9 @@ class Bot:
             # )
 
             self.trade_client.list_symbols().addCallback(print_symbols)
+
+            # Subscribe to ticks after authentication is complete
+            self.subscribe_to_ticks("XAUUSD", True)
         def print_symbols(result):
             symbols = Protobuf.extract(result)
             for s in symbols.symbol:
@@ -316,5 +330,5 @@ class Bot:
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to subscribe to {symbol_name} ticks: {e}")
+            print(f"❌ Failed to subscribe to {symbol_name} ticks: {e}")
             return False
