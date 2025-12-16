@@ -2,6 +2,7 @@
 
 
 from typing import Dict
+from venv import logger
 from ctrader_open_api import Client, TcpProtocol, EndPoints
 from ctrader_open_api.trade_client import TradeClient
 from ctrader_open_api.protobuf import Protobuf
@@ -38,12 +39,14 @@ class Bot:
         self._client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
 
         # Initialize TradeClient with the client
-        self.trade_client = TradeClient(self._client)
+        self.trade_client = TradeClient(self._client, auth)
 
         # Set up event callbacks
         self._client._connectedCallback = self._on_connected
         self._client._disconnectedCallback = self._on_disconnected
-        self._client._messageReceivedCallback = self._on_message_received
+        self._client.setMessageReceivedCallback(self._on_message_received)
+
+        self.subscribe_to_ticks("XAUUSD", True)
 
         # Internal state
         self._is_running = False
@@ -146,7 +149,9 @@ class Bot:
         Args:
             message: Raw protobuf message
         """
-        pass
+
+        message_content = Protobuf.extract(message)
+        print(f"type: {message.payloadType} message content:", str(message_content))
 
     # Convenience methods for common operations
     def subscribe_to_spots(self, symbol_id, timeout_seconds=3600):
@@ -238,6 +243,23 @@ class Bot:
                 print(f"Account {account_id} authenticated successfully")
             else:
                 print("Account authentication failed - unexpected response type")
+            
+            # # This is a test for place limit order.
+            # self.trade_client.place_limit_order(
+            #     symbol_id=41,  # XAUUSD
+            #     trade_side='BUY',
+            #     price=4200/1e5,
+            #     volume=100  # 0.01 lots
+            # ).addCallback(lambda result: print("Market order executed:", result)
+            # ).addErrback(lambda error: print("Error executing market order:", error)
+            # )
+
+            self.trade_client.list_symbols().addCallback(print_symbols)
+        def print_symbols(result):
+            symbols = Protobuf.extract(result)
+            for s in symbols.symbol:
+                if "XAUUSD" in s.symbolName:
+                    print(s)
 
         def on_auth_error(failure):
             """Handle authentication errors"""
@@ -261,3 +283,38 @@ class Bot:
     def is_connected(self):
         """Check if bot is connected to cTrader server."""
         return self._client.isConnected
+    
+    def on_tick_subscription_success(self, result, symbol_id: int, symbol_name: str):
+        """Tick subscription successful"""
+        print(f"✅ Successfully subscribed to {symbol_name} tick data")
+
+    def subscribe_to_ticks(self, symbol_name: str, subscribe_to_timestamp: bool = True):
+        """
+        Subscribe to tick data for a symbol
+
+        Args:
+            symbol_name (str): Symbol name (e.g., "EURUSD")
+            subscribe_to_timestamp (bool): Include timestamp in tick data
+        """
+
+        print(f"📊 Subscribing to {symbol_name} tick data...")
+
+        symbol_id = 41  # hard code
+
+        try:
+            request = ProtoOASubscribeSpotsReq()
+            request.ctidTraderAccountId = self.auth.get("account_id")
+            request.symbolId.append(symbol_id)
+            request.subscribeToSpotTimestamp = subscribe_to_timestamp
+
+            deferred = self._client.send(request)
+            deferred.addCallbacks(
+                lambda result, sym_id=symbol_id, sym_name=symbol_name: self.on_tick_subscription_success(result, sym_id, sym_name),
+                # self.on_error
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to subscribe to {symbol_name} ticks: {e}")
+            return False
