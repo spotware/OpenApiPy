@@ -160,9 +160,9 @@ class Bot:
         Args:
             message: Raw protobuf message
         """
-
-        message_content = Protobuf.extract(message)
-        print(f"type: {message.payloadType} message content:", str(message_content))
+        pass
+        # message_content = Protobuf.extract(message)
+        # print(f"type: {message.payloadType} message content:", str(message_content))
 
     # Convenience methods for common operations
     def subscribe_to_spots(self, symbol_id, timeout_seconds=3600):

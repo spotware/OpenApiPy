@@ -162,7 +162,7 @@ class TradeClient:
 
         return self._client.send(request)
 
-    def close_position(self, position_id, volume=None):
+    def close_position(self, position_id, volume):
         """
         Close a position (partially or completely).
 
@@ -179,9 +179,7 @@ class TradeClient:
         request = ProtoOAClosePositionReq()
         request.ctidTraderAccountId = self._account_id
         request.positionId = position_id
-
-        if volume is not None:
-            request.volume = volume
+        request.volume = volume
 
         return self._client.send(request)
 
