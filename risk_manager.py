@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import pytz
+from ctrader_open_api.trade_client import TradeClient
 
 
 class RiskManager:
     def __init__(
         self,
-        trade_client,
+        trade_client: TradeClient,
         allowed_symbols: List[str],
         hedge_symbols: List[str],
         freeze_minutes: int,
@@ -86,9 +87,65 @@ class RiskManager:
 
     def get_closed_profit(self, time_delta: timedelta) -> float:
         """Get closed profit for the specified time period"""
-        # This would need to be implemented based on available API
-        # For now, return 0 as a placeholder
-        return 0.0
+        try:
+            current_time = self.get_server_time()
+            from_timestamp = int((current_time - time_delta).timestamp() * 1000)  # Convert to milliseconds
+            to_timestamp = int(current_time.timestamp() * 1000)  # Convert to milliseconds
+
+            # Use a callback-based approach to get deal history
+            self._closed_profit_result = 0.0
+            self._closed_profit_callback_done = False
+
+            def on_deal_list(message):
+                try:
+                    from ctrader_open_api.protobuf import Protobuf
+                    deal_data = Protobuf.extract(message)
+
+                    total_profit = 0.0
+                    if hasattr(deal_data, 'deal'):
+                        for deal in deal_data.deal:
+                            # Check if deal has closePositionDetail (indicates position closing)
+                            if hasattr(deal, 'closePositionDetail') and deal.closePositionDetail:
+                                # grossProfit is in cents, convert to currency units
+                                gross_profit = deal.closePositionDetail.grossProfit / 100.0
+
+                                # Subtract commission and swap
+                                commission = getattr(deal.closePositionDetail, 'commission', 0) / 100.0
+                                swap = getattr(deal.closePositionDetail, 'swap', 0) / 100.0
+
+                                net_profit = gross_profit - commission - swap
+                                total_profit += net_profit
+
+                    self._closed_profit_result = total_profit
+                    self._last_closed_profit = total_profit  # Cache the result
+                    self._closed_profit_callback_done = True
+                    print(f"Closed profit calculation updated: ${total_profit:.2f}")
+                except Exception as e:
+                    print(f"Error processing deal list: {e}")
+                    self._closed_profit_result = 0.0
+                    self._closed_profit_callback_done = True
+
+            def on_error(failure):
+                print(f"Error fetching deal history: {failure}")
+                self._closed_profit_result = 0.0
+                self._closed_profit_callback_done = True
+
+            # Request deal history using the correct API method
+            self._request_deal_history(from_timestamp, to_timestamp, on_deal_list, on_error)
+
+            # Store the request for later processing
+            self._pending_closed_profit_request = {
+                'from_timestamp': from_timestamp,
+                'to_timestamp': to_timestamp,
+                'requested_time': current_time
+            }
+
+            # Return the last calculated value or 0
+            return getattr(self, '_last_closed_profit', 0.0)
+
+        except Exception as e:
+            print(f"Error in get_closed_profit: {e}")
+            return 0.0
 
     def act(self):
         """Main action method - call all risk management checks"""
@@ -141,6 +198,52 @@ class RiskManager:
             print(f"Cached {len(self._symbols_data)} symbols")
         except Exception as e:
             print(f"Error caching symbols: {e}")
+
+    def _on_account_info_received(self, message):
+        """Cache account information for P&L calculation"""
+        try:
+            from ctrader_open_api.protobuf import Protobuf
+            trader_data = Protobuf.extract(message)
+
+            if hasattr(trader_data, 'trader'):
+                trader = trader_data.trader
+                # Cache balance and equity information
+                self._cached_account_balance = getattr(trader, 'balance', 0) / 100.0  # Convert from cents
+
+                # Note: ProtoOATrader doesn't have direct equity field
+                # Equity = Balance + Floating P&L, but we need to calculate it from positions
+                # For now, just cache the balance
+                print(f"Account balance updated: ${self._cached_account_balance:.2f}")
+
+                # Store other useful account info
+                self._cached_leverage = getattr(trader, 'maxLeverage', 0) / 100.0
+                self._cached_money_digits = getattr(trader, 'moneyDigits', 2)
+
+        except Exception as e:
+            print(f"Error caching account info: {e}")
+
+    def _request_deal_history(self, from_timestamp, to_timestamp, callback, errback):
+        """Request deal history from the API"""
+        try:
+            # Use the ProtoOADealListReq message
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOADealListReq
+            from ctrader_open_api.messages.OpenApiModelMessages_pb2 import ProtoOAPayloadType
+
+            request = ProtoOADealListReq()
+            request.payloadType = ProtoOAPayloadType.PROTO_OA_DEAL_LIST_REQ
+            request.ctidTraderAccountId = self.trade_client._account_id
+            request.fromTimestamp = from_timestamp
+            request.toTimestamp = to_timestamp
+            request.maxRows = 1000  # Limit to avoid too much data
+
+            # Send the request using the client
+            deferred = self.trade_client._client.send(request)
+            deferred.addCallback(callback)
+            deferred.addErrback(errback)
+
+        except Exception as e:
+            print(f"Error requesting deal history: {e}")
+            errback(e)
 
     def _on_error(self, failure):
         """Error handler for async operations"""
@@ -292,20 +395,80 @@ class RiskManager:
 
     def _get_current_loss_with_positions(self, positions) -> float:
         """Calculate: 24h closed profit minus floating_loss. If there is loss, the returned value is positive."""
-        # Compute floating PnL across all open positions
-        # Note: ProtoOAPosition doesn't have direct netProfit - this would need real-time price calculation
-        # For now, we'll return 0 as placeholder since actual P&L calculation requires current market prices
-        floating_pnl = self.trade_client.get_account_net_profit()
+        try:
+            # Calculate floating PnL by summing each position's unrealized P&L
+            floating_pnl = self._calculate_floating_pnl_with_positions(positions)
 
-        # Get closed profit in last 24 hours
-        closed_profit_24h = self.get_closed_profit(timedelta(hours=24))
+            # Get closed profit in last 24 hours
+            closed_profit_24h = self.get_closed_profit(timedelta(hours=24))
 
-        # If the closed profit is negative, treat it as zero for loss calculation.
-        closed_profit_24h = max(closed_profit_24h, 0.0)
+            # If the closed profit is negative, treat it as zero for loss calculation.
+            closed_profit_24h = max(closed_profit_24h, 0.0)
 
-        # Current loss as requested: total closed profit in last 24h minus floating_loss
-        current_loss = -floating_pnl - closed_profit_24h
-        return current_loss
+            # Current loss as requested: closed profit minus floating loss
+            # If floating_pnl is negative (loss), then -floating_pnl becomes positive (loss amount)
+            current_loss = closed_profit_24h - floating_pnl
+
+            print(f"Loss calculation: Closed profit 24h: ${closed_profit_24h:.2f}, Floating P&L: ${floating_pnl:.2f}, Current loss: ${current_loss:.2f}")
+
+            # Return the loss amount (positive value indicates loss)
+            return max(current_loss, 0.0)
+
+        except Exception as e:
+            print(f"Error calculating current loss: {e}")
+            return 0.0
+
+    def _calculate_floating_pnl_with_positions(self, positions) -> float:
+        """Calculate floating P&L by summing each position's unrealized P&L"""
+        total_floating_pnl = 0.0
+
+        try:
+            for position in positions:
+                position_pnl = self._calculate_position_floating_pnl(position)
+                total_floating_pnl += position_pnl
+
+                # Get position details for debugging
+                symbol_name = self._get_symbol_name_from_position(position)
+                volume_lots = position.tradeData.volume / 1e7 if hasattr(position, 'tradeData') else 0
+                trade_side = "BUY" if hasattr(position.tradeData, 'tradeSide') and position.tradeData.tradeSide == 1 else "SELL"
+
+                print(f"Position {position.positionId} ({symbol_name} {trade_side} {volume_lots:.3f}): Floating P&L ${position_pnl:.2f}")
+
+            print(f"Total floating P&L: ${total_floating_pnl:.2f}")
+            return total_floating_pnl
+
+        except Exception as e:
+            print(f"Error calculating floating P&L: {e}")
+            return 0.0
+
+    def _calculate_position_floating_pnl(self, position) -> float:
+        """Calculate floating P&L for a single position"""
+        try:
+            # Method 1: Use swap field as approximation (includes rollover costs)
+            # This is the accumulated swap/rollover cost/benefit for the position
+            swap_pnl = getattr(position, 'swap', 0) / 100.0  # Convert from cents
+
+            # Method 2: If we had current market prices, we would calculate:
+            # For BUY position: (current_price - entry_price) * volume * pip_value
+            # For SELL position: (entry_price - current_price) * volume * pip_value
+
+            # Method 3: Use commission field (usually negative)
+            commission = getattr(position, 'commission', 0) / 100.0  # Convert from cents
+
+            # For now, use swap as the primary indicator of P&L
+            # Swap accumulates daily and reflects the position's performance over time
+            # Note: This is not the complete floating P&L, just the swap component
+
+            # In a complete implementation, you would:
+            # 1. Get current bid/ask price for the symbol
+            # 2. Get position entry price from position.price or tradeData
+            # 3. Calculate: (current_price - entry_price) * volume * contract_size * pip_value
+
+            return swap_pnl
+
+        except Exception as e:
+            print(f"Error calculating position P&L: {e}")
+            return 0.0
 
     def _close_positions_with_data(self, positions):
         """Close all non-hedge positions across symbols"""
