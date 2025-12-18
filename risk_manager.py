@@ -295,7 +295,7 @@ class RiskManager:
         # Compute floating PnL across all open positions
         # Note: ProtoOAPosition doesn't have direct netProfit - this would need real-time price calculation
         # For now, we'll return 0 as placeholder since actual P&L calculation requires current market prices
-        floating_pnl = 0.0
+        floating_pnl = self.trade_client.get_account_net_profit()
 
         # Get closed profit in last 24 hours
         closed_profit_24h = self.get_closed_profit(timedelta(hours=24))

@@ -17,7 +17,7 @@ class RiskManagerBot(Bot):
             hedge_symbols=["XAUUSD"],  # Configure as needed
             freeze_minutes=60,
             max_lot_volume=0.08,
-            loss_threshold=1000.0,  # $1000 loss threshold
+            loss_threshold=0.01,  # $1000 loss threshold
             hedge_time=time(17, 0),  # 5 PM NY time
             random_trade=False  # Set to True for testing
         )
