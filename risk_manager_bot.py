@@ -278,9 +278,9 @@ class RiskManager:
         self.freeze_end_time = None
         self.last_hedge_execution_date = None
 
-        # Cache for symbols data and orders
+        # Cache for symbols data and deals
         self._symbols_data = {}
-        self._orders_cache = []
+        self._deals_cache = []
 
     async def act_async(self):
         """
@@ -295,11 +295,11 @@ class RiskManager:
             # Get current data asynchronously
             positions = await self._get_positions_async()
             symbols_data = await self._get_symbols_async()
-            orders = await self._get_orders_async()
+            deals = await self.trade_client.get_deals()
 
             # Store data for other methods
             self._symbols_data = symbols_data
-            self._orders_cache = orders
+            self._deals_cache = deals
 
             # Run checks that need position data
             await self._check_loss_async(positions)
@@ -324,10 +324,7 @@ class RiskManager:
 
     def get_position_entry_time(self, position) -> datetime:
         """Extract position entry time."""
-        if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'openTimestamp'):
-            return datetime.fromtimestamp(position.tradeData.openTimestamp / 1000, tz=pytz.UTC)
-        else:
-            return self.get_server_time()
+        return datetime.fromtimestamp(position.tradeData.openTimestamp / 1000, tz=pytz.UTC)
 
     def calculate_net_lot_volume(self, symbol: str, positions_data) -> float:
         """Calculate net lot volume for a symbol (long - short)."""
@@ -335,34 +332,32 @@ class RiskManager:
         symbol = symbol.upper()
 
         for position in positions_data:
-            if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'symbolId'):
-                # Get symbol name from our symbols cache
-                symbol_info = None
+            # Get symbol name from our symbols cache
+            symbol_info = None
 
-                for sym_name, sym_data in self._symbols_data.items():
-                    if sym_data.get('symbolId') == position.tradeData.symbolId:
-                        symbol_info = sym_data
-                        break
+            for sym_name, sym_data in self._symbols_data.items():
+                if sym_data.get('symbolId') == position.tradeData.symbolId:
+                    symbol_info = sym_data
+                    break
 
-                if symbol_info and symbol_info.get('symbolName', '').upper() == symbol:
-                    # Volume is in tradeData.volume (in cents)
-                    volume = position.tradeData.volume / 1e7  # Convert from cents to lots
+            if symbol_info and symbol_info.get('symbolName', '').upper() == symbol:
+                # Volume is in tradeData.volume (in cents)
+                volume = position.tradeData.volume / 1e7  # Convert from cents to lots
 
-                    # TradeSide: 1 = BUY, 2 = SELL
-                    if position.tradeData.tradeSide == 1:  # BUY
-                        net_volume += volume
-                    else:  # SELL
-                        net_volume -= volume
+                # TradeSide: 1 = BUY, 2 = SELL
+                if position.tradeData.tradeSide == 1:  # BUY
+                    net_volume += volume
+                else:  # SELL
+                    net_volume -= volume
 
         return net_volume
 
     def _get_symbol_name_from_position(self, position) -> str:
         """Get symbol name from position using symbolId lookup."""
-        if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'symbolId'):
-            if self._symbols_data:
-                for sym_name, sym_data in self._symbols_data.items():
-                    if sym_data.get('symbolId') == position.tradeData.symbolId:
-                        return sym_name
+        if self._symbols_data:
+            for sym_name, sym_data in self._symbols_data.items():
+                if sym_data.get('symbolId') == position.tradeData.symbolId:
+                    return sym_name
         return ""
 
     def _calculate_floating_pnl_with_positions(self, positions) -> float:
@@ -376,8 +371,8 @@ class RiskManager:
 
                 # Get position details for debugging
                 symbol_name = self._get_symbol_name_from_position(position)
-                volume_lots = position.tradeData.volume / 1e7 if hasattr(position, 'tradeData') else 0
-                trade_side = "BUY" if hasattr(position.tradeData, 'tradeSide') and position.tradeData.tradeSide == 1 else "SELL"
+                volume_lots = position.tradeData.volume / 1e7
+                trade_side = "BUY" if position.tradeData.tradeSide == 1 else "SELL"
 
                 logger.debug(f"Position {position.positionId} ({symbol_name} {trade_side} {volume_lots:.3f}): Floating P&L ${position_pnl:.2f}")
 
@@ -392,16 +387,13 @@ class RiskManager:
         """Calculate floating P&L for a single position using entry price from orders."""
         try:
             # Get current market price and other position data
-            current_price = getattr(position, 'price', 0.0)
-            swap = getattr(position, 'swap', 0) / 100.0  # Convert from cents
-            commission = getattr(position, 'commission', 0) / 100.0  # Convert from cents
-            position_id = getattr(position, 'positionId', 0)
+            current_price = position.price
+            swap = position.swap / 100.0  # Convert from cents
+            commission = position.commission / 100.0  # Convert from cents
+            position_id = position.positionId
 
             # Get trade data
-            trade_data = getattr(position, 'tradeData', None)
-            if not trade_data:
-                # Fallback to swap + commission
-                return swap + commission
+            trade_data = position.tradeData
 
             volume_lots = trade_data.volume / 1e7  # Convert from cents to lots
             trade_side = trade_data.tradeSide  # 1 = BUY, 2 = SELL
@@ -464,22 +456,17 @@ class RiskManager:
             return getattr(position, 'swap', 0) / 100.0
 
     def _get_position_entry_price(self, position_id: int) -> float:
-        """Get entry price for a position by finding the order that created it."""
+        """Get entry price for a position by finding the deal that created it."""
         try:
-            # Check if we have orders cache
-            if not hasattr(self, '_orders_cache'):
-                return 0.0
-
-            # Find order with matching positionId
-            for order in self._orders_cache:
-                if getattr(order, 'positionId', 0) == position_id:
-                    execution_price = getattr(order, 'executionPrice', 0.0)
-                    if execution_price > 0:
-                        logger.debug(f"Found entry price for position {position_id}: {execution_price}")
-                        return execution_price
-
-            # If not found in orders cache, could also check deal history
-            logger.debug(f"No entry price found for position {position_id}")
+            # Find deal with matching positionId
+            for deal in self._deals_cache:
+                if deal.positionId == position_id:
+                    execution_price = deal.executionPrice
+                    logger.info(f"Found entry price for position {position_id}: {execution_price}")
+                    return execution_price
+                        
+            # If not found in deals cache
+            logger.error(f"No entry price found for position {position_id} in deals cache")
             return 0.0
 
         except Exception as e:
@@ -513,27 +500,6 @@ class RiskManager:
         except Exception as e:
             logger.error(f"Error fetching symbols: {e}")
             return {}
-
-    async def _get_orders_async(self):
-        """Get orders asynchronously."""
-        try:
-            # The reconcile request returns both positions and orders
-            request = ProtoOAReconcileReq()
-            request.ctidTraderAccountId = self.trade_client.account_id
-
-            response = await self.trade_client.client.send_message(request, timeout=15)
-
-            if response:
-                from ctrader_open_api.protobuf import Protobuf
-                reconcile_data = Protobuf.extract(response)
-                orders = list(reconcile_data.order) if hasattr(reconcile_data, 'order') else []
-                logger.debug(f"Retrieved {len(orders)} orders")
-                return orders
-            return []
-
-        except Exception as e:
-            logger.error(f"Error fetching orders: {e}")
-            return []
 
     # Risk Management Checks
 
@@ -688,14 +654,6 @@ class RiskManager:
 
         except Exception as e:
             logger.error(f"Error calculating current loss: {e}")
-            # Fallback: if we can't calculate properly, use floating loss as indicator
-            try:
-                floating_pnl = self._calculate_floating_pnl_with_positions(positions)
-                if floating_pnl < 0:
-                    logger.info(f"Using floating P&L fallback: ${abs(floating_pnl):.2f}")
-                    return abs(floating_pnl)
-            except:
-                pass
             return 0.0
 
     async def _get_closed_profit_async(self, time_delta):

@@ -357,6 +357,76 @@ class TradeClient:
             return deals
         return []
 
+    async def get_deals(
+        self,
+        from_timestamp: Optional[int] = None,
+        to_timestamp: Optional[int] = None,
+        max_rows: int = 1000,
+        timeout: int = 20
+    ) -> List:
+        """
+        Get list of deals (executed trades).
+
+        Args:
+            from_timestamp: Start timestamp in milliseconds (optional)
+            to_timestamp: End timestamp in milliseconds (optional)
+            max_rows: Maximum number of deals to retrieve
+            timeout: Request timeout in seconds
+
+        Returns:
+            List of deal objects (ProtoOADeal)
+        """
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
+
+        # If no timestamps provided, get deals from last 30 days
+        if from_timestamp is None or to_timestamp is None:
+            from datetime import datetime, timedelta
+            current_time = datetime.now()
+            if to_timestamp is None:
+                to_timestamp = int(current_time.timestamp() * 1000)
+            if from_timestamp is None:
+                from_timestamp = int((current_time - timedelta(days=30)).timestamp() * 1000)
+
+        request = ProtoOADealListReq()
+        request.payloadType = ProtoOAPayloadType.PROTO_OA_DEAL_LIST_REQ
+        request.ctidTraderAccountId = self.account_id
+        request.fromTimestamp = from_timestamp
+        request.toTimestamp = to_timestamp
+        request.maxRows = max_rows
+
+        response = await self.client.send_message(request, timeout=timeout)
+        if response:
+            deal_data = Protobuf.extract(response)
+            deals = list(deal_data.deal) if hasattr(deal_data, 'deal') else []
+            logger.info(f"Retrieved {len(deals)} deals")
+            return deals
+        return []
+
+    async def get_orders(self, timeout: int = 15) -> List:
+        """
+        Get list of pending orders.
+
+        Args:
+            timeout: Request timeout in seconds
+
+        Returns:
+            List of order objects
+        """
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
+
+        request = ProtoOAReconcileReq()
+        request.ctidTraderAccountId = self.account_id
+
+        response = await self.client.send_message(request, timeout=timeout)
+        if response:
+            reconcile_data = Protobuf.extract(response)
+            orders = list(reconcile_data.order) if hasattr(reconcile_data, 'order') else []
+            logger.info(f"Retrieved {len(orders)} orders")
+            return orders
+        return []
+
     # Cache Management
 
     async def update_positions_cache(self):
