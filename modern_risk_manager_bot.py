@@ -6,11 +6,12 @@ Provides comprehensive risk management with clean async interface.
 
 import asyncio
 import logging
-from datetime import time
-from typing import Dict
+import pytz
+from datetime import time, datetime, timedelta
+from typing import Dict, List, Optional
 
 from ctrader_open_api.modern_bot import ModernBot
-from risk_manager import RiskManager
+from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAReconcileReq
 
 
 # Setup logging
@@ -127,38 +128,71 @@ class ModernRiskManagerBot(ModernBot):
         await super().stop()
 
 
-class ModernRiskManager(RiskManager):
+class ModernRiskManager:
     """
     Modern Risk Manager that works with async trade client.
-    Extends the original RiskManager with async capabilities.
+    Provides comprehensive risk management with async capabilities.
     """
 
-    def __init__(self, trade_client, **kwargs):
+    def __init__(
+        self,
+        trade_client,
+        allowed_symbols: List[str],
+        hedge_symbols: List[str],
+        freeze_minutes: int,
+        max_lot_volume: float,
+        loss_threshold: float,
+        hedge_time,
+        random_trade: bool = False,
+    ):
         """
         Initialize with modern trade client.
 
         Args:
             trade_client: ModernTradeClient instance
-            **kwargs: Same arguments as original RiskManager
+            allowed_symbols: List of allowed trading symbols
+            hedge_symbols: List of hedge symbols
+            freeze_minutes: Minutes to freeze trading after loss threshold
+            max_lot_volume: Maximum lot volume per symbol
+            loss_threshold: Loss threshold to trigger position closing
+            hedge_time: Time to create hedge positions
+            random_trade: Enable random trading for testing
         """
-        super().__init__(trade_client, **kwargs)
+        self.trade_client = trade_client
+        self.allowed_symbols = [s.upper() for s in allowed_symbols]
+        self.hedge_symbols = [s.upper() for s in hedge_symbols]
+        self.freeze_minutes = int(freeze_minutes)
+        self.max_lot_volume = float(max_lot_volume)
+        self.loss_threshold = float(loss_threshold)
+        self.hedge_time = hedge_time
+        self.random_trade_enabled = bool(random_trade)
+
+        self.freeze_start_time = None
+        self.freeze_end_time = None
+        self.last_hedge_execution_date = None
+
+        # Cache for symbols data and orders
+        self._symbols_data = {}
+        self._orders_cache = []
 
     async def act_async(self):
         """
-        Async version of the act() method.
-        Main risk management logic with async data fetching.
+        Main risk management action method.
+        Performs all risk management checks asynchronously.
         """
         # Always do these first as they don't require position data
-        self.check_freeze_period_async()
-        self.check_time_restrictions_async()
+        await self._check_freeze_period()
+        await self._check_time_restrictions()
 
         try:
             # Get current data asynchronously
             positions = await self._get_positions_async()
             symbols_data = await self._get_symbols_async()
+            orders = await self._get_orders_async()
 
-            # Store symbols data for other methods
+            # Store data for other methods
             self._symbols_data = symbols_data
+            self._orders_cache = orders
 
             # Run checks that need position data
             await self._check_loss_async(positions)
@@ -167,6 +201,191 @@ class ModernRiskManager(RiskManager):
 
         except Exception as e:
             logger.error(f"Error in async risk management checks: {e}")
+
+    # Helper Methods
+
+    def get_server_time(self, timezone_str: str = "UTC") -> datetime:
+        """Get current server time in specified timezone."""
+        if timezone_str == "UTC":
+            return datetime.now(pytz.UTC)
+        elif timezone_str == "America/New_York":
+            ny_tz = pytz.timezone("America/New_York")
+            return datetime.now(ny_tz)
+        else:
+            tz = pytz.timezone(timezone_str)
+            return datetime.now(tz)
+
+    def get_position_entry_time(self, position) -> datetime:
+        """Extract position entry time."""
+        if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'openTimestamp'):
+            return datetime.fromtimestamp(position.tradeData.openTimestamp / 1000, tz=pytz.UTC)
+        else:
+            return self.get_server_time()
+
+    def calculate_net_lot_volume(self, symbol: str, positions_data) -> float:
+        """Calculate net lot volume for a symbol (long - short)."""
+        net_volume = 0.0
+        symbol = symbol.upper()
+
+        for position in positions_data:
+            if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'symbolId'):
+                # Get symbol name from our symbols cache
+                symbol_info = None
+
+                for sym_name, sym_data in self._symbols_data.items():
+                    if sym_data.get('symbolId') == position.tradeData.symbolId:
+                        symbol_info = sym_data
+                        break
+
+                if symbol_info and symbol_info.get('symbolName', '').upper() == symbol:
+                    # Volume is in tradeData.volume (in cents)
+                    volume = position.tradeData.volume / 1e7  # Convert from cents to lots
+
+                    # TradeSide: 1 = BUY, 2 = SELL
+                    if position.tradeData.tradeSide == 1:  # BUY
+                        net_volume += volume
+                    else:  # SELL
+                        net_volume -= volume
+
+        return net_volume
+
+    def _get_symbol_name_from_position(self, position) -> str:
+        """Get symbol name from position using symbolId lookup."""
+        if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'symbolId'):
+            if self._symbols_data:
+                for sym_name, sym_data in self._symbols_data.items():
+                    if sym_data.get('symbolId') == position.tradeData.symbolId:
+                        return sym_name
+        return ""
+
+    def _calculate_floating_pnl_with_positions(self, positions) -> float:
+        """Calculate floating P&L by summing each position's unrealized P&L."""
+        total_floating_pnl = 0.0
+
+        try:
+            for position in positions:
+                position_pnl = self._calculate_position_floating_pnl(position)
+                total_floating_pnl += position_pnl
+
+                # Get position details for debugging
+                symbol_name = self._get_symbol_name_from_position(position)
+                volume_lots = position.tradeData.volume / 1e7 if hasattr(position, 'tradeData') else 0
+                trade_side = "BUY" if hasattr(position.tradeData, 'tradeSide') and position.tradeData.tradeSide == 1 else "SELL"
+
+                logger.debug(f"Position {position.positionId} ({symbol_name} {trade_side} {volume_lots:.3f}): Floating P&L ${position_pnl:.2f}")
+
+            logger.info(f"Total floating P&L: ${total_floating_pnl:.2f}")
+            return total_floating_pnl
+
+        except Exception as e:
+            logger.error(f"Error calculating floating P&L: {e}")
+            return 0.0
+
+    def _calculate_position_floating_pnl(self, position) -> float:
+        """Calculate floating P&L for a single position using entry price from orders."""
+        try:
+            # Get current market price and other position data
+            current_price = getattr(position, 'price', 0.0)
+            swap = getattr(position, 'swap', 0) / 100.0  # Convert from cents
+            commission = getattr(position, 'commission', 0) / 100.0  # Convert from cents
+            position_id = getattr(position, 'positionId', 0)
+
+            # Get trade data
+            trade_data = getattr(position, 'tradeData', None)
+            if not trade_data:
+                # Fallback to swap + commission
+                return swap + commission
+
+            volume_lots = trade_data.volume / 1e7  # Convert from cents to lots
+            trade_side = trade_data.tradeSide  # 1 = BUY, 2 = SELL
+            symbol_id = trade_data.symbolId
+
+            # Find the entry price from orders with matching positionId
+            entry_price = self._get_position_entry_price(position_id)
+
+            if entry_price == 0.0 or current_price == 0.0:
+                # Fallback to swap + commission if we can't get prices
+                logger.debug(f"Position {position_id}: No entry/current price, using swap+commission fallback")
+                return swap + commission
+
+            # Get symbol info for pip calculation
+            symbol_info = None
+            for sym_name, sym_data in self._symbols_data.items():
+                if sym_data.get('symbolId') == symbol_id:
+                    symbol_info = sym_data
+                    break
+
+            if not symbol_info:
+                logger.debug(f"Position {position_id}: No symbol info found, using swap+commission fallback")
+                return swap + commission
+
+            # Calculate price movement P&L
+            # Get pip value for proper calculation
+            symbol_name = symbol_info.get('symbolName', '')
+            pip_position = 1e5  # Default for most forex pairs (5 decimal places)
+
+            # Adjust pip position based on symbol type
+            if 'JPY' in symbol_name:
+                pip_position = 1e3  # JPY pairs typically have 3 decimal places
+            elif symbol_name in ['XAUUSD', 'XAGUSD']:  # Gold, Silver
+                pip_position = 1e2  # Metals typically have 2 decimal places
+
+            # Calculate price difference in pips
+            price_diff_pips = (current_price - entry_price) * pip_position
+
+            # Calculate P&L
+            if trade_side == 1:  # BUY position
+                price_pnl = price_diff_pips * volume_lots
+            else:  # SELL position
+                price_pnl = -price_diff_pips * volume_lots
+
+            # For forex, assume 1 pip = $1 per standard lot (simplified)
+            # In reality, you'd need to calculate pip value based on account currency
+
+            # Total P&L = Price P&L + Swap + Commission
+            total_pnl = price_pnl + swap + commission
+
+            logger.debug(f"Position {position_id}: Entry={entry_price}, Current={current_price}, "
+                        f"Volume={volume_lots:.3f}, Side={'BUY' if trade_side == 1 else 'SELL'}, "
+                        f"Price P&L=${price_pnl:.2f}, Swap=${swap:.2f}, Total=${total_pnl:.2f}")
+
+            return total_pnl
+
+        except Exception as e:
+            logger.error(f"Error calculating position P&L: {e}")
+            # Fallback to swap only
+            return getattr(position, 'swap', 0) / 100.0
+
+    def _get_position_entry_price(self, position_id: int) -> float:
+        """Get entry price for a position by finding the order that created it."""
+        try:
+            # Check if we have orders cache
+            if not hasattr(self, '_orders_cache'):
+                return 0.0
+
+            # Find order with matching positionId
+            for order in self._orders_cache:
+                if getattr(order, 'positionId', 0) == position_id:
+                    execution_price = getattr(order, 'executionPrice', 0.0)
+                    if execution_price > 0:
+                        logger.debug(f"Found entry price for position {position_id}: {execution_price}")
+                        return execution_price
+
+            # If not found in orders cache, could also check deal history
+            logger.debug(f"No entry price found for position {position_id}")
+            return 0.0
+
+        except Exception as e:
+            logger.error(f"Error getting entry price for position {position_id}: {e}")
+            return 0.0
+
+    def _start_freeze_period(self):
+        """Start the freeze period."""
+        self.freeze_start_time = self.get_server_time()
+        self.freeze_end_time = self.freeze_start_time + timedelta(minutes=self.freeze_minutes)
+        logger.info(f"Freeze period started at {self.freeze_start_time}, duration: {self.freeze_minutes} minutes")
+
+    # Data Retrieval Methods
 
     async def _get_positions_async(self):
         """Get positions asynchronously."""
@@ -188,18 +407,146 @@ class ModernRiskManager(RiskManager):
             logger.error(f"Error fetching symbols: {e}")
             return {}
 
-    def check_freeze_period_async(self):
-        """Async version of freeze period check."""
-        # This method is mostly synchronous, just renamed for consistency
-        self.check_freeze_period()
+    async def _get_orders_async(self):
+        """Get orders asynchronously."""
+        try:
+            # The reconcile request returns both positions and orders
+            request = ProtoOAReconcileReq()
+            request.ctidTraderAccountId = self.trade_client.account_id
 
-    def check_time_restrictions_async(self):
-        """Async version of time restrictions check."""
-        # This method is mostly synchronous, just renamed for consistency
-        self.check_time_restrictions()
+            response = await self.trade_client.client.send_message(request, timeout=15)
+
+            if response:
+                from ctrader_open_api.protobuf import Protobuf
+                reconcile_data = Protobuf.extract(response)
+                orders = list(reconcile_data.order) if hasattr(reconcile_data, 'order') else []
+                logger.debug(f"Retrieved {len(orders)} orders")
+                return orders
+            return []
+
+        except Exception as e:
+            logger.error(f"Error fetching orders: {e}")
+            return []
+
+    # Risk Management Checks
+
+    async def _check_freeze_period(self):
+        """Check and manage freeze period."""
+        if self.freeze_start_time is None:
+            return
+
+        current_time = self.get_server_time()
+        if current_time >= self.freeze_end_time:
+            logger.info(f"Freeze period ended at {current_time}")
+            self.freeze_start_time = None
+            self.freeze_end_time = None
+        else:
+            # Close any new positions opened during freeze period (non-hedge)
+            try:
+                positions = await self._get_positions_async()
+                await self._close_new_positions_during_freeze(positions)
+            except Exception as e:
+                logger.error(f"Error checking positions during freeze: {e}")
+
+    async def _close_new_positions_during_freeze(self, positions):
+        """Close any new positions opened during freeze period (non-hedge)."""
+        if self.freeze_start_time is None:
+            return
+
+        try:
+            for position in positions:
+                # Get symbol name from position
+                symbol_name = self._get_symbol_name_from_position(position)
+                if symbol_name.upper() in self.hedge_symbols:
+                    continue
+
+                position_entry_time = self.get_position_entry_time(position)
+                if self.freeze_start_time < position_entry_time <= self.freeze_end_time:
+                    logger.info(f"Closing position {position.positionId} opened during freeze period at {position_entry_time}")
+                    try:
+                        await self.trade_client.close_position(position.positionId, position.tradeData.volume)
+                    except Exception as e:
+                        logger.error(f"Error closing position during freeze: {e}")
+        except Exception as e:
+            logger.error(f"Error processing positions for freeze check: {e}")
+
+    async def _check_time_restrictions(self):
+        """Check time-based trading restrictions - hedge logic after cutoff."""
+        now_ny = self.get_server_time("America/New_York")
+
+        if now_ny.time() >= self.hedge_time:
+            current_date = now_ny.date()
+            if self.last_hedge_execution_date != current_date:
+                await self._handle_post_cutoff_positions()
+                self.last_hedge_execution_date = current_date
+
+    async def _handle_post_cutoff_positions(self):
+        """Handle positions after NY cutoff time - create hedge positions if floating loss."""
+        try:
+            positions = await self._get_positions_async()
+            await self._check_symbols_for_hedge(positions)
+        except Exception as e:
+            logger.error(f"Error checking positions for hedge: {e}")
+
+    async def _check_symbols_for_hedge(self, positions):
+        """Check each symbol for hedge requirements."""
+        try:
+            for symbol in self.allowed_symbols:
+                floating_loss = await self._get_symbol_floating_loss_async(symbol, positions)
+                if floating_loss < 0:
+                    logger.info(f"Floating loss detected for {symbol} after cutoff: ${floating_loss:.2f}")
+                    logger.info("Creating hedge positions instead of closing...")
+                    await self._create_hedge_positions_async(symbol, positions)
+        except Exception as e:
+            logger.error(f"Error checking symbols for hedge: {e}")
+
+    async def _get_symbol_floating_loss_async(self, symbol: str, positions) -> float:
+        """Get floating P&L for a specific symbol."""
+        floating_pnl = 0.0
+        symbol = symbol.upper()
+
+        for position in positions:
+            symbol_name = self._get_symbol_name_from_position(position)
+            if symbol_name.upper() == symbol:
+                # For now, assume no floating loss (would need current market price)
+                pass
+
+        return floating_pnl
+
+    async def _create_hedge_positions_async(self, symbol: str, positions):
+        """Create hedge positions for the symbol."""
+        net_lot_volume = self.calculate_net_lot_volume(symbol.upper(), positions)
+
+        if abs(net_lot_volume) > 0:
+            hedge_volume = abs(net_lot_volume)
+            volume_in_units = int(hedge_volume * 100000)  # Convert lots to cents
+
+            if net_lot_volume > 0:
+                trade_side = 'SELL'
+                logger.info(f"Creating SHORT hedge position for {symbol}: {hedge_volume:.3f} lots")
+            else:
+                trade_side = 'BUY'
+                logger.info(f"Creating BUY hedge position for {symbol}: {hedge_volume:.3f} lots")
+
+            # Get symbol info from cache
+            symbol_info = self._symbols_data.get(symbol.upper())
+            if not symbol_info:
+                logger.error(f"Symbol {symbol} not found in cache")
+                return
+
+            try:
+                result = await self.trade_client.execute_market_order(
+                    symbol_id=symbol_info.get('symbolId'),
+                    trade_side=trade_side,
+                    volume=volume_in_units,
+                    comment="Hedge position"
+                )
+                logger.info(f"Successfully created hedge position for {symbol}")
+            except Exception as e:
+                logger.error(f"Failed to place {trade_side} order for {symbol}: {e}")
 
     async def _check_loss_async(self, positions):
-        """Async version of loss check."""
+        """Check if current loss exceeds threshold and trigger forced closing."""
         try:
             current_loss = await self._get_current_loss_async(positions)
 
@@ -213,28 +560,35 @@ class ModernRiskManager(RiskManager):
             logger.error(f"Error in loss check: {e}")
 
     async def _get_current_loss_async(self, positions):
-        """Async version of current loss calculation."""
+        """Calculate current loss with closed profit and floating P&L."""
         try:
             # Calculate floating PnL
             floating_pnl = self._calculate_floating_pnl_with_positions(positions)
 
             # Get closed profit asynchronously
-            from datetime import timedelta
             closed_profit_24h = await self._get_closed_profit_async(timedelta(hours=24))
 
             # If the closed profit is negative, treat it as zero for loss calculation
             closed_profit_24h = max(closed_profit_24h, 0.0)
 
-            # Current loss calculation
-            current_loss = closed_profit_24h - floating_pnl
+            # Current loss calculation Put the negative sign
+            current_loss = - (closed_profit_24h + floating_pnl)
 
             logger.info(f"Loss calculation: Closed profit 24h: ${closed_profit_24h:.2f}, "
                        f"Floating P&L: ${floating_pnl:.2f}, Current loss: ${current_loss:.2f}")
 
-            return max(current_loss, 0.0)
+            return current_loss
 
         except Exception as e:
             logger.error(f"Error calculating current loss: {e}")
+            # Fallback: if we can't calculate properly, use floating loss as indicator
+            try:
+                floating_pnl = self._calculate_floating_pnl_with_positions(positions)
+                if floating_pnl < 0:
+                    logger.info(f"Using floating P&L fallback: ${abs(floating_pnl):.2f}")
+                    return abs(floating_pnl)
+            except:
+                pass
             return 0.0
 
     async def _get_closed_profit_async(self, time_delta):
@@ -246,7 +600,7 @@ class ModernRiskManager(RiskManager):
             return 0.0
 
     async def _check_volume_async(self, positions):
-        """Async version of volume check."""
+        """Check and enforce position volume limits for each symbol."""
         try:
             for symbol in self.allowed_symbols:
                 if not symbol:
@@ -263,7 +617,7 @@ class ModernRiskManager(RiskManager):
             logger.error(f"Error in volume check: {e}")
 
     async def _close_excess_positions_async(self, symbol, excess_volume, positions):
-        """Async version of closing excess positions."""
+        """Close excess positions for a symbol to stay within volume limits."""
         try:
             symbol = symbol.upper()
             symbol_positions = [
@@ -295,7 +649,7 @@ class ModernRiskManager(RiskManager):
             logger.error(f"Error closing excess positions: {e}")
 
     async def _check_symbols_async(self, positions):
-        """Async version of symbol restrictions check."""
+        """Check and enforce symbol restrictions."""
         try:
             allowed_and_hedge = self.allowed_symbols + self.hedge_symbols
 
@@ -316,7 +670,7 @@ class ModernRiskManager(RiskManager):
             logger.error(f"Error in symbol check: {e}")
 
     async def _close_positions_async(self, positions):
-        """Async version of closing positions."""
+        """Close all non-hedge positions across symbols."""
         try:
             positions_closed = 0
             for position in positions:
