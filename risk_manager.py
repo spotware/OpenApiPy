@@ -16,7 +16,7 @@ class RiskManager:
         hedge_time,
         random_trade: bool = False,
     ):
-        self.trade_client = trade_client
+        self.trade_client: TradeClient = trade_client
         self.allowed_symbols = [s.upper() for s in allowed_symbols]
         self.hedge_symbols = [s.upper() for s in hedge_symbols]
         self.freeze_minutes = int(freeze_minutes)
@@ -29,6 +29,25 @@ class RiskManager:
         self.freeze_end_time = None
         self.last_hedge_execution_date = None
 
+    def act(self):
+        """Main action method - call all risk management checks"""
+        # Always do these first as they don't require position data
+        # self.random_trade()
+        self.check_freeze_period()
+        self.check_time_restrictions()
+
+        # Get current positions and symbols synchronously
+        try:
+            positions = self.trade_client.get_positions_sync()
+            self._symbols_data = self.trade_client.get_symbols_sync()
+
+            # Now run checks that need position data
+            self.check_loss_with_positions(positions)
+            self.check_volume_with_positions(positions)
+            self.check_symbols_with_positions(positions)
+
+        except Exception as e:
+            print(f"Error in risk management checks: {e}")
 
     def get_server_time(self, timezone_str: str = "UTC") -> datetime:
         """Replace get_server_time with current time"""
@@ -58,8 +77,10 @@ class RiskManager:
         for position in positions_data:
             if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'symbolId'):
                 # Get symbol name from our symbols cache
+                symbols_data = getattr(self, '_symbols_data', {})
                 symbol_info = None
-                for sym_name, sym_data in getattr(self, '_symbols_data', {}).items():
+
+                for sym_name, sym_data in symbols_data.items():
                     if sym_data.get('symbolId') == position.tradeData.symbolId:
                         symbol_info = sym_data
                         break
@@ -80,174 +101,20 @@ class RiskManager:
     def _get_symbol_name_from_position(self, position) -> str:
         """Get symbol name from position using symbolId lookup"""
         if hasattr(position, 'tradeData') and hasattr(position.tradeData, 'symbolId'):
-            for sym_name, sym_data in getattr(self, '_symbols_data', {}).items():
-                if sym_data.get('symbolId') == position.tradeData.symbolId:
-                    return sym_name
+            symbols_data = getattr(self, '_symbols_data', {})
+            if symbols_data:  # New structure from TradeClient
+                for sym_name, sym_data in symbols_data.items():
+                    if sym_data.get('symbolId') == position.tradeData.symbolId:
+                        return sym_name
         return ""
 
     def get_closed_profit(self, time_delta: timedelta) -> float:
         """Get closed profit for the specified time period"""
         try:
-            current_time = self.get_server_time()
-            from_timestamp = int((current_time - time_delta).timestamp() * 1000)  # Convert to milliseconds
-            to_timestamp = int(current_time.timestamp() * 1000)  # Convert to milliseconds
-
-            # Use a callback-based approach to get deal history
-            self._closed_profit_result = 0.0
-            self._closed_profit_callback_done = False
-
-            def on_deal_list(message):
-                try:
-                    from ctrader_open_api.protobuf import Protobuf
-                    deal_data = Protobuf.extract(message)
-
-                    total_profit = 0.0
-                    if hasattr(deal_data, 'deal'):
-                        for deal in deal_data.deal:
-                            # Check if deal has closePositionDetail (indicates position closing)
-                            if hasattr(deal, 'closePositionDetail') and deal.closePositionDetail:
-                                # grossProfit is in cents, convert to currency units
-                                gross_profit = deal.closePositionDetail.grossProfit / 100.0
-
-                                # Subtract commission and swap
-                                commission = getattr(deal.closePositionDetail, 'commission', 0) / 100.0
-                                swap = getattr(deal.closePositionDetail, 'swap', 0) / 100.0
-
-                                net_profit = gross_profit - commission - swap
-                                total_profit += net_profit
-
-                    self._closed_profit_result = total_profit
-                    self._last_closed_profit = total_profit  # Cache the result
-                    self._closed_profit_callback_done = True
-                    print(f"Closed profit calculation updated: ${total_profit:.2f}")
-                except Exception as e:
-                    print(f"Error processing deal list: {e}")
-                    self._closed_profit_result = 0.0
-                    self._closed_profit_callback_done = True
-
-            def on_error(failure):
-                print(f"Error fetching deal history: {failure}")
-                self._closed_profit_result = 0.0
-                self._closed_profit_callback_done = True
-
-            # Request deal history using the correct API method
-            self._request_deal_history(from_timestamp, to_timestamp, on_deal_list, on_error)
-
-            # Store the request for later processing
-            self._pending_closed_profit_request = {
-                'from_timestamp': from_timestamp,
-                'to_timestamp': to_timestamp,
-                'requested_time': current_time
-            }
-
-            # Return the last calculated value or 0
-            return getattr(self, '_last_closed_profit', 0.0)
-
+            return self.trade_client.get_closed_profit_sync(time_delta)
         except Exception as e:
-            print(f"Error in get_closed_profit: {e}")
+            print(f"Error getting closed profit: {e}")
             return 0.0
-
-    def act(self):
-        """Main action method - call all risk management checks"""
-        # Always do these first as they don't require position data
-        # self.random_trade()
-        self.check_freeze_period()
-        self.check_time_restrictions()
-
-        # Fetch current positions and symbols for the other checks
-        try:
-            self.trade_client.list_positions().addCallback(self._on_positions_for_checks).addErrback(self._on_error)
-            if not hasattr(self, '_symbols_fetched'):
-                self.trade_client.list_symbols().addCallback(self._on_symbols_received).addErrback(self._on_error)
-        except Exception as e:
-            print(f"Error fetching market data: {e}")
-
-    def _on_positions_for_checks(self, message):
-        """Handle positions data and run position-dependent checks"""
-        try:
-            from ctrader_open_api.protobuf import Protobuf
-            positions_data = Protobuf.extract(message)
-
-            positions = []
-            if hasattr(positions_data, 'position'):
-                positions = positions_data.position
-
-            # Now run checks that need position data
-            self.check_loss_with_positions(positions)
-            self.check_volume_with_positions(positions)
-            self.check_symbols_with_positions(positions)
-
-        except Exception as e:
-            print(f"Error processing positions for checks: {e}")
-
-    def _on_symbols_received(self, message):
-        """Cache symbols data"""
-        try:
-            from ctrader_open_api.protobuf import Protobuf
-            symbols_data = Protobuf.extract(message)
-
-            self._symbols_data = {}
-            if hasattr(symbols_data, 'symbol'):
-                for symbol in symbols_data.symbol:
-                    self._symbols_data[symbol.symbolName.upper()] = {
-                        'symbolId': symbol.symbolId,
-                        'symbolName': symbol.symbolName,
-                        'minVolume': symbol.minVolume if hasattr(symbol, 'minVolume') else 100000,
-                    }
-            self._symbols_fetched = True
-            print(f"Cached {len(self._symbols_data)} symbols")
-        except Exception as e:
-            print(f"Error caching symbols: {e}")
-
-    def _on_account_info_received(self, message):
-        """Cache account information for P&L calculation"""
-        try:
-            from ctrader_open_api.protobuf import Protobuf
-            trader_data = Protobuf.extract(message)
-
-            if hasattr(trader_data, 'trader'):
-                trader = trader_data.trader
-                # Cache balance and equity information
-                self._cached_account_balance = getattr(trader, 'balance', 0) / 100.0  # Convert from cents
-
-                # Note: ProtoOATrader doesn't have direct equity field
-                # Equity = Balance + Floating P&L, but we need to calculate it from positions
-                # For now, just cache the balance
-                print(f"Account balance updated: ${self._cached_account_balance:.2f}")
-
-                # Store other useful account info
-                self._cached_leverage = getattr(trader, 'maxLeverage', 0) / 100.0
-                self._cached_money_digits = getattr(trader, 'moneyDigits', 2)
-
-        except Exception as e:
-            print(f"Error caching account info: {e}")
-
-    def _request_deal_history(self, from_timestamp, to_timestamp, callback, errback):
-        """Request deal history from the API"""
-        try:
-            # Use the ProtoOADealListReq message
-            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOADealListReq
-            from ctrader_open_api.messages.OpenApiModelMessages_pb2 import ProtoOAPayloadType
-
-            request = ProtoOADealListReq()
-            request.payloadType = ProtoOAPayloadType.PROTO_OA_DEAL_LIST_REQ
-            request.ctidTraderAccountId = self.trade_client._account_id
-            request.fromTimestamp = from_timestamp
-            request.toTimestamp = to_timestamp
-            request.maxRows = 1000  # Limit to avoid too much data
-
-            # Send the request using the client
-            deferred = self.trade_client._client.send(request)
-            deferred.addCallback(callback)
-            deferred.addErrback(errback)
-
-        except Exception as e:
-            print(f"Error requesting deal history: {e}")
-            errback(e)
-
-    def _on_error(self, failure):
-        """Error handler for async operations"""
-        print(f"Risk Manager async error: {failure}")
 
     # def random_trade(self):
     #     """Optional random trade for testing."""
@@ -295,25 +162,19 @@ class RiskManager:
             self.freeze_start_time = None
             self.freeze_end_time = None
         else:
-            # Fetch positions to check for freeze violations
+            # Close any new positions opened during freeze period (non-hedge)
             try:
-                self.trade_client.list_positions().addCallback(self._close_new_positions_during_freeze).addErrback(self._on_error)
+                positions = self.trade_client.get_positions_sync()
+                self._close_new_positions_during_freeze(positions)
             except Exception as e:
-                print(f"Error fetching positions for freeze check: {e}")
+                print(f"Error checking positions during freeze: {e}")
 
-    def _close_new_positions_during_freeze(self, message):
+    def _close_new_positions_during_freeze(self, positions):
         """Close any new positions opened during freeze period (non-hedge)."""
         if self.freeze_start_time is None:
             return
 
         try:
-            from ctrader_open_api.protobuf import Protobuf
-            positions_data = Protobuf.extract(message)
-
-            positions = []
-            if hasattr(positions_data, 'position'):
-                positions = positions_data.position
-
             for position in positions:
                 # Get symbol name from position
                 symbol_name = self._get_symbol_name_from_position(position)
@@ -411,11 +272,25 @@ class RiskManager:
 
             print(f"Loss calculation: Closed profit 24h: ${closed_profit_24h:.2f}, Floating P&L: ${floating_pnl:.2f}, Current loss: ${current_loss:.2f}")
 
+            # If deal history is unavailable and we have significant floating loss,
+            # use conservative approach - treat floating loss as the primary indicator
+            if not hasattr(self, '_last_closed_profit_time') and floating_pnl < -50.0:
+                print(f"Warning: Using floating P&L as loss indicator due to unavailable deal history")
+                return abs(floating_pnl)
+
             # Return the loss amount (positive value indicates loss)
             return max(current_loss, 0.0)
 
         except Exception as e:
             print(f"Error calculating current loss: {e}")
+            # Fallback: if we can't calculate properly, use floating loss as indicator
+            try:
+                floating_pnl = self._calculate_floating_pnl_with_positions(positions)
+                if floating_pnl < 0:
+                    print(f"Using floating P&L fallback: ${abs(floating_pnl):.2f}")
+                    return abs(floating_pnl)
+            except:
+                pass
             return 0.0
 
     def _calculate_floating_pnl_with_positions(self, positions) -> float:
@@ -509,20 +384,14 @@ class RiskManager:
     def _handle_post_cutoff_positions(self):
         """Handle positions after NY cutoff time - create hedge positions if floating loss"""
         try:
-            self.trade_client.list_positions().addCallback(self._check_symbols_for_hedge).addErrback(self._on_error)
+            positions = self.trade_client.get_positions_sync()
+            self._check_symbols_for_hedge(positions)
         except Exception as e:
-            print(f"Error fetching positions for hedge check: {e}")
+            print(f"Error checking positions for hedge: {e}")
 
-    def _check_symbols_for_hedge(self, message):
+    def _check_symbols_for_hedge(self, positions):
         """Check each symbol for hedge requirements"""
         try:
-            from ctrader_open_api.protobuf import Protobuf
-            positions_data = Protobuf.extract(message)
-
-            positions = []
-            if hasattr(positions_data, 'position'):
-                positions = positions_data.position
-
             for symbol in self.allowed_symbols:
                 floating_loss = self._get_symbol_floating_loss_with_positions(symbol, positions)
                 if floating_loss < 0:
@@ -563,8 +432,9 @@ class RiskManager:
                 trade_side = 'BUY'
                 print(f"Creating BUY hedge position for {symbol}: {hedge_volume:.3f} lots. Volume in units: {volume_in_units}")
 
-            # Get symbol info
-            symbol_info = getattr(self, '_symbols_data', {}).get(symbol)
+            # Get symbol info from cache
+            symbols_data = getattr(self, '_symbols_data', {})
+            symbol_info = symbols_data.get(symbol.upper())
             if not symbol_info:
                 print(f"Symbol {symbol} not found in cache")
                 return
