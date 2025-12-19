@@ -20,7 +20,7 @@ from ctrader_open_api.protobuf import Protobuf
 logger = logging.getLogger(__name__)
 
 
-class ModernClient:
+class Client:
     """
     Modern cTrader Open API Client using raw TCP and asyncio.
 

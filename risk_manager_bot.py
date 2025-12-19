@@ -10,7 +10,7 @@ import pytz
 from datetime import time, datetime, timedelta
 from typing import Dict, List, Optional
 
-from ctrader_open_api.modern_bot import ModernBot
+from ctrader_open_api.bot import Bot
 from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAReconcileReq
 
 
@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class ModernRiskManagerBot(ModernBot):
+class RiskManagerBot(Bot):
     """
     Modern Risk Manager Bot with async/await interface.
     Provides the same risk management functionality as the original bot
@@ -40,7 +40,7 @@ class ModernRiskManagerBot(ModernBot):
         super().__init__(auth, host_type=host_type, auto_authenticate=True)
 
         # Risk management configuration
-        self.risk_manager = ModernRiskManager(
+        self.risk_manager = RiskManager(
             trade_client=self.trade_client,
             allowed_symbols=["EURUSD", "GBPUSD", "USDJPY"],  # Configure as needed
             hedge_symbols=["XAUUSD"],  # Configure as needed
@@ -128,7 +128,7 @@ class ModernRiskManagerBot(ModernBot):
         await super().stop()
 
 
-class ModernRiskManager:
+class RiskManager:
     """
     Modern Risk Manager that works with async trade client.
     Provides comprehensive risk management with async capabilities.
@@ -149,7 +149,7 @@ class ModernRiskManager:
         Initialize with modern trade client.
 
         Args:
-            trade_client: ModernTradeClient instance
+            trade_client: TradeClient instance
             allowed_symbols: List of allowed trading symbols
             hedge_symbols: List of hedge symbols
             freeze_minutes: Minutes to freeze trading after loss threshold
@@ -704,7 +704,7 @@ async def main():
         "account_token": "-KwZawTvJbMvSGaPaQ-Rrt96CltxaiCsWAEK_6IuSDE",
     }
 
-    bot = ModernRiskManagerBot(auth=auth)
+    bot = RiskManagerBot(auth=auth)
     await bot.start()
 
 

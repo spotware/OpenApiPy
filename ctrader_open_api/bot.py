@@ -8,8 +8,8 @@ import asyncio
 import logging
 from typing import Dict, Optional, Callable, Any
 
-from ctrader_open_api.modern_client import ModernClient
-from ctrader_open_api.modern_trade_client import ModernTradeClient
+from ctrader_open_api.client import Client
+from ctrader_open_api.trade_client import TradeClient
 from ctrader_open_api.endpoints import EndPoints
 from ctrader_open_api.messages.OpenApiMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
@@ -19,7 +19,7 @@ from ctrader_open_api.protobuf import Protobuf
 logger = logging.getLogger(__name__)
 
 
-class ModernBot:
+class Bot:
     """
     Modern high-level bot framework for cTrader Open API.
     Provides event-driven callbacks for tick and bar data using async/await.
@@ -33,7 +33,7 @@ class ModernBot:
         auto_authenticate: bool = True
     ):
         """
-        Initialize ModernBot with async client.
+        Initialize Bot with async client.
 
         Args:
             auth: Dictionary containing authentication credentials
@@ -52,14 +52,14 @@ class ModernBot:
         self.auto_authenticate = auto_authenticate
 
         # Create modern client
-        self.client = ModernClient(
+        self.client = Client(
             host=host,
             port=EndPoints.PROTOBUF_PORT,
             max_messages_per_second=max_messages_per_second
         )
 
         # Create trade client
-        self.trade_client = ModernTradeClient(self.client, auth)
+        self.trade_client = TradeClient(self.client, auth)
 
         # Setup event handlers
         self._setup_event_handlers()
@@ -395,4 +395,4 @@ if __name__ == "__main__":
         "account_id": 45416297,
         "account_token": "-KwZawTvJbMvSGaPaQ-Rrt96CltxaiCsWAEK_6IuSDE",
     }
-    run_bot_sync(ModernBot, auth)
+    run_bot_sync(Bot, auth)

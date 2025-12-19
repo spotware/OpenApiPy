@@ -10,7 +10,7 @@ import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 
-from ctrader_open_api.modern_client import ModernClient
+from ctrader_open_api.client import Client
 from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
@@ -20,18 +20,18 @@ from ctrader_open_api.protobuf import Protobuf
 logger = logging.getLogger(__name__)
 
 
-class ModernTradeClient:
+class TradeClient:
     """
     Modern high-level wrapper for cTrader Open API trading operations.
     Provides async/await methods for common trading tasks.
     """
 
-    def __init__(self, client: ModernClient, auth: Dict):
+    def __init__(self, client: Client, auth: Dict):
         """
-        Initialize ModernTradeClient with a ModernClient instance.
+        Initialize TradeClient with a Client instance.
 
         Args:
-            client: An instance of ModernClient
+            client: An instance of Client
             auth: Dictionary containing authentication credentials
         """
         self.client = client
