@@ -1,0 +1,18 @@
+{
+    "auth": {
+        "client_id": "7870_AGNoUDByyfLOPTiKMGwZHQbK5whzvUNo2BpTCsTXff3ajFz8my",
+        "client_secret": "0xtJwsbjTul1lmjjOI5rwSaViVIhcMJNqW8bWNzARwHVwQdeuA",
+        "account_id": 45416297,
+        "account_number": "5155500",
+        "account_token": "-KwZawTvJbMvSGaPaQ-Rrt96CltxaiCsWAEK_6IuSDE"
+    },
+    "host_type": "demo",
+    "risk_manager_config": {
+        "allowed_symbols": ["EURUSD", "GBPUSD", "USDJPY"],
+        "hedge_symbols": ["XAUUSD"],
+        "freeze_minutes": 60,
+        "max_lot_volume": 0.08,
+        "loss_threshold": 0.01,
+        "hedge_time": "17:00"
+    }
+}

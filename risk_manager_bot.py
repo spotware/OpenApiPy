@@ -5,6 +5,8 @@ Provides comprehensive risk management with clean async interface.
 """
 
 import asyncio
+import argparse
+import json
 import logging
 import pytz
 from datetime import time, datetime, timedelta
@@ -22,6 +24,87 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def load_config(config_path: str) -> dict:
+    """Load configuration from JSON file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        logger.info(f"Configuration loaded from {config_path}")
+        return config
+    except FileNotFoundError:
+        logger.error(f"Configuration file not found: {config_path}")
+        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in configuration file: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Error loading configuration: {e}")
+        raise
+
+
+def parse_hedge_time(time_str: str) -> time:
+    """Parse hedge time from string format (HH:MM) to time object."""
+    try:
+        hour, minute = map(int, time_str.split(':'))
+        return time(hour, minute)
+    except ValueError:
+        logger.error(f"Invalid hedge time format: {time_str}. Expected HH:MM")
+        raise
+
+
+def validate_config(config: dict):
+    """Validate that all required configuration parameters are present."""
+    # Required top-level keys
+    required_top_level = ['auth', 'risk_manager_config']
+    for key in required_top_level:
+        if key not in config:
+            raise ValueError(f"Missing required configuration section: {key}")
+
+    # Required auth parameters
+    required_auth = ['client_id', 'client_secret', 'account_id', 'account_token']
+    auth_config = config['auth']
+    for key in required_auth:
+        if key not in auth_config:
+            raise ValueError(f"Missing required auth parameter: {key}")
+
+    # Required risk manager parameters
+    required_risk = [
+        'allowed_symbols', 'hedge_symbols', 'freeze_minutes',
+        'max_lot_volume', 'loss_threshold', 'hedge_time'
+    ]
+    risk_config = config['risk_manager_config']
+    for key in required_risk:
+        if key not in risk_config:
+            raise ValueError(f"Missing required risk manager parameter: {key}")
+
+    # Validate parameter types
+    if not isinstance(risk_config['allowed_symbols'], list):
+        raise ValueError("allowed_symbols must be a list")
+
+    if not isinstance(risk_config['hedge_symbols'], list):
+        raise ValueError("hedge_symbols must be a list")
+
+    if not isinstance(risk_config['freeze_minutes'], (int, float)) or risk_config['freeze_minutes'] < 0:
+        raise ValueError("freeze_minutes must be a non-negative number")
+
+    if not isinstance(risk_config['max_lot_volume'], (int, float)) or risk_config['max_lot_volume'] <= 0:
+        raise ValueError("max_lot_volume must be a positive number")
+
+    if not isinstance(risk_config['loss_threshold'], (int, float)) or risk_config['loss_threshold'] <= 0:
+        raise ValueError("loss_threshold must be a positive number")
+
+    if not isinstance(risk_config['hedge_time'], str):
+        raise ValueError("hedge_time must be a string in HH:MM format")
+
+    # Validate hedge time format
+    try:
+        parse_hedge_time(risk_config['hedge_time'])
+    except ValueError:
+        raise ValueError("hedge_time must be in HH:MM format (e.g., '17:00')")
+
+    logger.info("Configuration validation passed")
+
+
 class RiskManagerBot(Bot):
     """
     Modern Risk Manager Bot with async/await interface.
@@ -29,26 +112,52 @@ class RiskManagerBot(Bot):
     but with better error handling and no Twisted dependencies.
     """
 
-    def __init__(self, auth: Dict, host_type: str = "demo"):
+    def __init__(self, auth: Dict, host_type: str = "demo", config: Dict = None):
         """
         Initialize the modern risk manager bot.
 
         Args:
             auth: Authentication credentials
             host_type: 'demo' or 'live' server
+            config: Risk management configuration parameters
         """
         super().__init__(auth, host_type=host_type, auto_authenticate=True)
+
+        # Use default config if none provided
+        if config is None:
+            config = {
+                "allowed_symbols": ["EURUSD", "GBPUSD", "USDJPY"],
+                "hedge_symbols": ["XAUUSD"],
+                "freeze_minutes": 60,
+                "max_lot_volume": 0.08,
+                "loss_threshold": 0.01,
+                "hedge_time": "17:00"
+            }
+
+        # Validate all required parameters are present
+        required_params = [
+            'allowed_symbols', 'hedge_symbols', 'freeze_minutes',
+            'max_lot_volume', 'loss_threshold', 'hedge_time'
+        ]
+
+        for param in required_params:
+            if param not in config:
+                raise ValueError(f"Missing required configuration parameter: {param}")
+
+        # Parse hedge time if it's a string
+        hedge_time = config["hedge_time"]
+        if isinstance(hedge_time, str):
+            hedge_time = parse_hedge_time(hedge_time)
 
         # Risk management configuration
         self.risk_manager = RiskManager(
             trade_client=self.trade_client,
-            allowed_symbols=["EURUSD", "GBPUSD", "USDJPY"],  # Configure as needed
-            hedge_symbols=["XAUUSD"],  # Configure as needed
-            freeze_minutes=60,
-            max_lot_volume=0.08,
-            loss_threshold=0.01,  # $1000 loss threshold
-            hedge_time=time(17, 0),  # 5 PM NY time
-            random_trade=False  # Set to True for testing
+            allowed_symbols=config["allowed_symbols"],
+            hedge_symbols=config["hedge_symbols"],
+            freeze_minutes=config["freeze_minutes"],
+            max_lot_volume=config["max_lot_volume"],
+            loss_threshold=config["loss_threshold"],
+            hedge_time=hedge_time,
         )
 
         # Risk management task
@@ -143,7 +252,6 @@ class RiskManager:
         max_lot_volume: float,
         loss_threshold: float,
         hedge_time,
-        random_trade: bool = False,
     ):
         """
         Initialize with modern trade client.
@@ -165,7 +273,6 @@ class RiskManager:
         self.max_lot_volume = float(max_lot_volume)
         self.loss_threshold = float(loss_threshold)
         self.hedge_time = hedge_time
-        self.random_trade_enabled = bool(random_trade)
 
         self.freeze_start_time = None
         self.freeze_end_time = None
@@ -695,22 +802,38 @@ class RiskManager:
             logger.error(f"Error closing positions: {e}")
 
 
-async def main():
+async def main(config_path: str):
     """Main function to run the modern risk manager bot."""
-    auth = {
-        "client_id": "7870_AGNoUDByyfLOPTiKMGwZHQbK5whzvUNo2BpTCsTXff3ajFz8my",
-        "client_secret": "0xtJwsbjTul1lmjjOI5rwSaViVIhcMJNqW8bWNzARwHVwQdeuA",
-        "account_id": 45416297,
-        "account_token": "-KwZawTvJbMvSGaPaQ-Rrt96CltxaiCsWAEK_6IuSDE",
-    }
+    # Load configuration from JSON file
+    full_config = load_config(config_path)
 
-    bot = RiskManagerBot(auth=auth)
+    # Validate configuration
+    validate_config(full_config)
+
+    # Extract auth and risk manager configuration
+    auth = full_config["auth"]
+    host_type = full_config.get("host_type", "demo")
+    config = full_config["risk_manager_config"]
+
+    # Create and start the bot
+    bot = RiskManagerBot(auth=auth, host_type=host_type, config=config)
     await bot.start()
+
+
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Risk Manager Bot")
+    parser.add_argument(
+        "config",
+        help="Path to JSON configuration file"
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        args = parse_args()
+        asyncio.run(main(args.config))
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
