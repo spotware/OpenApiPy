@@ -3,7 +3,9 @@
     "allow": [
       "Bash(powershell:*)",
       "Bash(python:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(rm:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

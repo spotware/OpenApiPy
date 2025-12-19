@@ -1,62 +1,156 @@
 #!/usr/bin/env python
+"""
+Modern TradeClient using the new async client.
+Provides a clean async/await interface for trading operations.
+"""
 
-from typing import Dict, List, Optional
-from twisted.internet import defer
+import asyncio
+import logging
+import time
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+
+from ctrader_open_api.modern_client import ModernClient
 from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiMessages_pb2 import *
 from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
 from ctrader_open_api.protobuf import Protobuf
-from ctrader_open_api import Client
-import uuid
-import time
-from datetime import datetime, timedelta
 
 
-class TradeClient:
+logger = logging.getLogger(__name__)
+
+
+class ModernTradeClient:
     """
-    High-level wrapper for cTrader Open API trading operations.
-    Provides simplified methods for common trading tasks.
+    Modern high-level wrapper for cTrader Open API trading operations.
+    Provides async/await methods for common trading tasks.
     """
 
-    def __init__(self, client: Client, auth: Dict):
+    def __init__(self, client: ModernClient, auth: Dict):
         """
-        Initialize TradeClient with an existing Client instance.
+        Initialize ModernTradeClient with a ModernClient instance.
 
         Args:
-            client: An instance of ctrader_open_api.Client
+            client: An instance of ModernClient
             auth: Dictionary containing authentication credentials
         """
-        self._client = client
-        self._auth = auth
-        self._account_id = auth.get("account_id")
-        self._is_app_authorized = False
-        self._is_account_authorized = False
+        self.client = client
+        self.auth = auth
+        self.account_id = auth.get("account_id")
+        self.is_app_authorized = False
+        self.is_account_authorized = False
 
-        # Cache for synchronous methods
-        self._positions_cache = []
-        self._symbols_cache = {}
-        self._last_positions_update = None
-        self._last_symbols_update = None
-        self._cache_timeout = 30  # 30 seconds cache timeout
+        # Cache for data
+        self.positions_cache: List = []
+        self.symbols_cache: Dict = {}
+        self.last_positions_update: Optional[float] = None
+        self.last_symbols_update: Optional[float] = None
+        self.cache_timeout = 30  # 30 seconds
 
-    def execute_market_order(self, symbol_id, trade_side, volume, comment=None):
+        # Setup event handlers
+        self._setup_event_handlers()
+
+    def _setup_event_handlers(self):
+        """Setup event handlers for real-time updates."""
+        # Handle execution events (order/position updates)
+        self.client.add_message_handler(
+            ProtoOAExecutionEvent().payloadType,
+            self._handle_execution_event
+        )
+
+        # Handle spot events (tick data)
+        self.client.add_message_handler(
+            ProtoOASpotEvent().payloadType,
+            self._handle_spot_event
+        )
+
+    async def authenticate(self) -> bool:
+        """
+        Perform application and account authentication.
+
+        Returns:
+            bool: True if authentication successful, False otherwise
+        """
+        try:
+            # Step 1: Application authentication
+            app_auth_req = ProtoOAApplicationAuthReq()
+            app_auth_req.clientId = self.auth["client_id"]
+            app_auth_req.clientSecret = self.auth["client_secret"]
+
+            logger.info("Authenticating application...")
+            app_response = await self.client.send_message(app_auth_req)
+
+            if not app_response or app_response.payloadType != ProtoOAApplicationAuthRes().payloadType:
+                logger.error("Application authentication failed")
+                return False
+
+            self.is_app_authorized = True
+            logger.info("Application authenticated successfully")
+
+            # Step 2: Account authentication
+            account_auth_req = ProtoOAAccountAuthReq()
+            account_auth_req.ctidTraderAccountId = self.account_id
+            account_auth_req.accessToken = self.auth["account_token"]
+
+            logger.info(f"Authenticating account {self.account_id}...")
+            account_response = await self.client.send_message(account_auth_req)
+
+            if not account_response or account_response.payloadType != ProtoOAAccountAuthRes().payloadType:
+                logger.error("Account authentication failed")
+                return False
+
+            self.is_account_authorized = True
+            logger.info(f"Account {self.account_id} authenticated successfully")
+
+            # Initialize data caches
+            await self._initialize_caches()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Authentication error: {e}")
+            return False
+
+    async def _initialize_caches(self):
+        """Initialize data caches after authentication."""
+        try:
+            # Load symbols
+            await self.update_symbols_cache()
+
+            # Load positions
+            await self.update_positions_cache()
+
+        except Exception as e:
+            logger.error(f"Error initializing caches: {e}")
+
+    # Trading Operations
+
+    async def execute_market_order(
+        self,
+        symbol_id: int,
+        trade_side: str,
+        volume: int,
+        comment: Optional[str] = None,
+        timeout: int = 10
+    ) -> Any:
         """
         Execute a market order.
 
         Args:
-            symbol_id (int): Symbol ID for the instrument
-            trade_side (str): 'BUY' or 'SELL'
-            volume (int): Volume in cents (e.g., 100000 for 0.01 lots)
-            comment (str, optional): Order comment
+            symbol_id: Symbol ID for the instrument
+            trade_side: 'BUY' or 'SELL'
+            volume: Volume in cents (e.g., 100000 for 0.01 lots)
+            comment: Optional order comment
+            timeout: Request timeout in seconds
 
         Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with order result
+            Order execution response or None if failed
         """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
 
         request = ProtoOANewOrderReq()
-        request.ctidTraderAccountId = self._account_id
+        request.ctidTraderAccountId = self.account_id
         request.symbolId = symbol_id
         request.orderType = ProtoOAOrderType.MARKET
         request.tradeSide = ProtoOATradeSide.BUY if trade_side.upper() == 'BUY' else ProtoOATradeSide.SELL
@@ -65,388 +159,364 @@ class TradeClient:
         if comment:
             request.comment = comment
 
-        return self._client.send(request)
+        logger.info(f"Executing {trade_side} market order for symbol {symbol_id}, volume {volume}")
+        return await self.client.send_message(request, timeout=timeout)
 
-    def place_order(self, symbol_id, trade_side, volume, order_type="MARKET", price=None, stop_price=None, comment=None, label=None):
+    async def place_limit_order(
+        self,
+        symbol_id: int,
+        trade_side: str,
+        volume: int,
+        price: float,
+        comment: Optional[str] = None,
+        label: Optional[str] = None,
+        timeout: int = 10
+    ) -> Any:
         """
-        Place an order (market, limit, or stop).
+        Place a limit order.
 
         Args:
-            symbol_id (int): Symbol ID for the instrument
-            trade_side (str): 'BUY' or 'SELL'
-            volume (int): Volume in cents (e.g., 100000 for 0.01 lots)
-            order_type (str): 'MARKET', 'LIMIT', or 'STOP'
-            price (float, optional): Price for limit/stop orders
-            stop_price (float, optional): Stop price for stop orders
-            comment (str, optional): Order comment
-            label (str, optional): Order label
+            symbol_id: Symbol ID for the instrument
+            trade_side: 'BUY' or 'SELL'
+            volume: Volume in cents (e.g., 100000 for 0.01 lots)
+            price: Limit price
+            comment: Optional order comment
+            label: Optional order label
+            timeout: Request timeout in seconds
 
         Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with order result
+            Order placement response or None if failed
         """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
 
         request = ProtoOANewOrderReq()
-        request.ctidTraderAccountId = self._account_id
+        request.ctidTraderAccountId = self.account_id
         request.symbolId = symbol_id
+        request.orderType = ProtoOAOrderType.LIMIT
         request.tradeSide = ProtoOATradeSide.BUY if trade_side.upper() == 'BUY' else ProtoOATradeSide.SELL
         request.volume = volume
+        request.limitPrice = int(price * 100000)  # Convert to pips
 
-        # Set order type
-        order_type = order_type.upper()
-        if order_type == "MARKET":
-            request.orderType = ProtoOAOrderType.MARKET
-        elif order_type == "LIMIT":
-            request.orderType = ProtoOAOrderType.LIMIT
-            if price is None:
-                return defer.fail(Exception("Price is required for limit orders"))
-            request.limitPrice = int(price * 100000)  # Convert to pips
-        elif order_type == "STOP":
-            request.orderType = ProtoOAOrderType.STOP
-            if price is None:
-                return defer.fail(Exception("Price is required for stop orders"))
-            request.stopPrice = int(price * 100000)  # Convert to pips
-        else:
-            return defer.fail(Exception(f"Invalid order type: {order_type}"))
-
-        # Optional parameters
         if comment:
             request.comment = comment
         if label:
             request.label = label
 
-        return self._client.send(request)
+        logger.info(f"Placing {trade_side} limit order for symbol {symbol_id}, volume {volume}, price {price}")
+        return await self.client.send_message(request, timeout=timeout)
 
-    def place_limit_order(self, symbol_id, trade_side, volume, price, comment=None, label=None):
-        """
-        Place a limit order.
-
-        Args:
-            symbol_id (int): Symbol ID for the instrument
-            trade_side (str): 'BUY' or 'SELL'
-            volume (int): Volume in cents (e.g., 100000 for 0.01 lots)
-            price (float): Limit price
-            comment (str, optional): Order comment
-            label (str, optional): Order label
-
-        Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with order result
-        """
-        return self.place_order(symbol_id, trade_side, volume, "LIMIT", price=price, comment=comment, label=label)
-
-    def place_stop_order(self, symbol_id, trade_side, volume, price, comment=None, label=None):
-        """
-        Place a stop order.
-
-        Args:
-            symbol_id (int): Symbol ID for the instrument
-            trade_side (str): 'BUY' or 'SELL'
-            volume (int): Volume in cents (e.g., 100000 for 0.01 lots)
-            price (float): Stop price
-            comment (str, optional): Order comment
-            label (str, optional): Order label
-
-        Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with order result
-        """
-        return self.place_order(symbol_id, trade_side, volume, "STOP", price=price, comment=comment, label=label)
-
-    def cancel_order(self, order_id):
-        """
-        Cancel a pending order.
-
-        Args:
-            order_id (int): Order ID to cancel
-
-        Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with cancellation result
-        """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
-
-        request = ProtoOACancelOrderReq()
-        request.ctidTraderAccountId = self._account_id
-        request.orderId = order_id
-
-        return self._client.send(request)
-
-    def close_position(self, position_id, volume):
+    async def close_position(self, position_id: int, volume: int, timeout: int = 10) -> Any:
         """
         Close a position (partially or completely).
 
         Args:
-            position_id (int): Position ID to close
-            volume (int, optional): Volume to close in cents. If None, closes entire position.
+            position_id: Position ID to close
+            volume: Volume to close in cents
+            timeout: Request timeout in seconds
 
         Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with close result
+            Close position response or None if failed
         """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
 
         request = ProtoOAClosePositionReq()
-        request.ctidTraderAccountId = self._account_id
+        request.ctidTraderAccountId = self.account_id
         request.positionId = position_id
         request.volume = volume
 
-        return self._client.send(request)
+        logger.info(f"Closing position {position_id}, volume {volume}")
+        return await self.client.send_message(request, timeout=timeout)
 
-    def get_account_net_profit(self):
+    async def cancel_order(self, order_id: int, timeout: int = 10) -> Any:
         """
-        Get account's net profit/loss.
+        Cancel a pending order.
+
+        Args:
+            order_id: Order ID to cancel
+            timeout: Request timeout in seconds
 
         Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with account details
+            Cancel order response or None if failed
         """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
 
-        request = ProtoOATraderReq()
-        request.ctidTraderAccountId = self._account_id
+        request = ProtoOACancelOrderReq()
+        request.ctidTraderAccountId = self.account_id
+        request.orderId = order_id
 
-        return self._client.send(request)
+        logger.info(f"Cancelling order {order_id}")
+        return await self.client.send_message(request, timeout=timeout)
 
-    def list_positions(self):
+    # Data Operations
+
+    async def get_positions(self, timeout: int = 15) -> List:
         """
         Get list of open positions.
 
-        Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with positions list
-        """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
-
-        request = ProtoOAReconcileReq()
-        request.ctidTraderAccountId = self._account_id
-
-        return self._client.send(request)
-
-    def list_orders(self):
-        """
-        Get list of pending orders.
-        Note: Orders are typically included in the reconcile response.
+        Args:
+            timeout: Request timeout in seconds
 
         Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with orders list
+            List of position objects
         """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
 
         request = ProtoOAReconcileReq()
-        request.ctidTraderAccountId = self._account_id
+        request.ctidTraderAccountId = self.account_id
 
-        return self._client.send(request)
+        response = await self.client.send_message(request, timeout=timeout)
+        if response:
+            positions_data = Protobuf.extract(response)
+            positions = list(positions_data.position) if hasattr(positions_data, 'position') else []
 
-    def list_symbols(self, include_archived=False):
+            # Update cache
+            self.positions_cache = positions
+            self.last_positions_update = time.time()
+
+            logger.info(f"Retrieved {len(positions)} positions")
+            return positions
+        return []
+
+    async def get_symbols(self, include_archived: bool = False, timeout: int = 15) -> Dict:
         """
         Get list of available trading symbols.
 
         Args:
-            include_archived (bool, optional): Whether to include archived symbols. Default: False
+            include_archived: Whether to include archived symbols
+            timeout: Request timeout in seconds
 
         Returns:
-            twisted.internet.defer.Deferred: Promise that resolves with symbols list
+            Dictionary of symbol data
         """
-        if not self._is_account_authorized:
-            return defer.fail(Exception("Account not authenticated"))
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
 
         request = ProtoOASymbolsListReq()
-        request.ctidTraderAccountId = self._account_id
+        request.ctidTraderAccountId = self.account_id
         request.includeArchivedSymbols = include_archived
 
-        return self._client.send(request)
+        response = await self.client.send_message(request, timeout=timeout)
+        if response:
+            symbols_data = Protobuf.extract(response)
+            symbols = {}
 
-    @property
-    def is_authenticated(self):
-        """Check if both app and account are authenticated."""
-        return self._is_app_authorized and self._is_account_authorized
+            if hasattr(symbols_data, 'symbol'):
+                for symbol in symbols_data.symbol:
+                    symbols[symbol.symbolName.upper()] = {
+                        'symbolId': symbol.symbolId,
+                        'symbolName': symbol.symbolName,
+                        'minVolume': symbol.minVolume if hasattr(symbol, 'minVolume') else 100000,
+                    }
 
-    @property
-    def account_id(self):
-        """Get the current account ID."""
-        return self._account_id
+            # Update cache
+            self.symbols_cache = symbols
+            self.last_symbols_update = time.time()
 
-    # Synchronous wrapper methods for RiskManager
-    def get_positions_sync(self) -> List:
+            logger.info(f"Retrieved {len(symbols)} symbols")
+            return symbols
+        return {}
+
+    async def get_deal_history(
+        self,
+        from_timestamp: int,
+        to_timestamp: int,
+        max_rows: int = 100,
+        timeout: int = 20
+    ) -> List:
         """
-        Get positions synchronously with caching.
-        Returns a list of position objects, not a Deferred.
+        Get deal history for the specified time period.
+
+        Args:
+            from_timestamp: Start timestamp in milliseconds
+            to_timestamp: End timestamp in milliseconds
+            max_rows: Maximum number of deals to retrieve
+            timeout: Request timeout in seconds
+
+        Returns:
+            List of deal objects
+        """
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
+
+        request = ProtoOADealListReq()
+        request.payloadType = ProtoOAPayloadType.PROTO_OA_DEAL_LIST_REQ
+        request.ctidTraderAccountId = self.account_id
+        request.fromTimestamp = from_timestamp
+        request.toTimestamp = to_timestamp
+        request.maxRows = max_rows
+
+        response = await self.client.send_message(request, timeout=timeout)
+        if response:
+            deal_data = Protobuf.extract(response)
+            deals = list(deal_data.deal) if hasattr(deal_data, 'deal') else []
+            logger.info(f"Retrieved {len(deals)} deals")
+            return deals
+        return []
+
+    # Cache Management
+
+    async def update_positions_cache(self):
+        """Update positions cache."""
+        try:
+            positions = await self.get_positions()
+            logger.debug(f"Positions cache updated: {len(positions)} positions")
+        except Exception as e:
+            logger.error(f"Error updating positions cache: {e}")
+
+    async def update_symbols_cache(self):
+        """Update symbols cache."""
+        try:
+            symbols = await self.get_symbols()
+            logger.debug(f"Symbols cache updated: {len(symbols)} symbols")
+        except Exception as e:
+            logger.error(f"Error updating symbols cache: {e}")
+
+    def get_positions_cached(self) -> List:
+        """
+        Get positions from cache (synchronous).
+        Updates cache if expired.
         """
         current_time = time.time()
 
         # Check if cache is valid
-        if (self._last_positions_update and
-            current_time - self._last_positions_update < self._cache_timeout):
-            return self._positions_cache
+        if (self.last_positions_update and
+            current_time - self.last_positions_update < self.cache_timeout):
+            return self.positions_cache
 
-        # Only update cache if we're authenticated and connected
-        if self.is_authenticated and hasattr(self, '_client') and self._client.isConnected:
-            # Update cache asynchronously but return immediately
-            self._update_positions_cache()
+        # Trigger async update if possible
+        if self.is_authenticated:
+            asyncio.create_task(self.update_positions_cache())
 
-        return self._positions_cache
+        return self.positions_cache
 
-    def get_symbols_sync(self) -> Dict:
+    def get_symbols_cached(self) -> Dict:
         """
-        Get symbols synchronously with caching.
-        Returns a dictionary of symbol data, not a Deferred.
+        Get symbols from cache (synchronous).
+        Updates cache if expired.
         """
         current_time = time.time()
 
         # Check if cache is valid
-        if (self._last_symbols_update and
-            current_time - self._last_symbols_update < self._cache_timeout):
-            return self._symbols_cache
+        if (self.last_symbols_update and
+            current_time - self.last_symbols_update < self.cache_timeout):
+            return self.symbols_cache
 
-        # Only update cache if we're authenticated and connected
-        if self.is_authenticated and hasattr(self, '_client') and self._client.isConnected:
-            # Update cache asynchronously but return immediately
-            self._update_symbols_cache()
+        # Trigger async update if possible
+        if self.is_authenticated:
+            asyncio.create_task(self.update_symbols_cache())
 
-        return self._symbols_cache
+        return self.symbols_cache
 
-    def get_closed_profit_sync(self, time_delta: timedelta) -> float:
+    async def calculate_closed_profit(self, time_delta: timedelta) -> float:
         """
-        Get closed profit synchronously for the specified time period.
-        Returns a float value, not a Deferred.
+        Calculate closed profit for the specified time period.
+
+        Args:
+            time_delta: Time period to calculate profit for
+
+        Returns:
+            Total closed profit
         """
         try:
-            from twisted.internet import reactor
             current_time = datetime.now()
             from_timestamp = int((current_time - time_delta).timestamp() * 1000)
             to_timestamp = int(current_time.timestamp() * 1000)
 
-            # Store result in instance variable
-            self._sync_result = None
-            self._sync_error = None
-            self._sync_done = False
+            deals = await self.get_deal_history(from_timestamp, to_timestamp)
 
-            def on_success(message):
-                try:
-                    deal_data = Protobuf.extract(message)
-                    total_profit = 0.0
+            total_profit = 0.0
+            for deal in deals:
+                if hasattr(deal, 'closePositionDetail') and deal.closePositionDetail:
+                    gross_profit = deal.closePositionDetail.grossProfit / 100.0
+                    commission = getattr(deal.closePositionDetail, 'commission', 0) / 100.0
+                    swap = getattr(deal.closePositionDetail, 'swap', 0) / 100.0
+                    net_profit = gross_profit - commission - swap
+                    total_profit += net_profit
 
-                    if hasattr(deal_data, 'deal'):
-                        for deal in deal_data.deal:
-                            if hasattr(deal, 'closePositionDetail') and deal.closePositionDetail:
-                                gross_profit = deal.closePositionDetail.grossProfit / 100.0
-                                commission = getattr(deal.closePositionDetail, 'commission', 0) / 100.0
-                                swap = getattr(deal.closePositionDetail, 'swap', 0) / 100.0
-                                net_profit = gross_profit - commission - swap
-                                total_profit += net_profit
-
-                    self._sync_result = total_profit
-                    self._sync_done = True
-                except Exception as e:
-                    print(f"Error processing deal list: {e}")
-                    self._sync_error = e
-                    self._sync_done = True
-
-            def on_error(failure):
-                print(f"Error fetching deal history: {failure}")
-                self._sync_error = failure
-                self._sync_done = True
-
-            # Make the request
-            self._request_deal_history_sync(from_timestamp, to_timestamp, on_success, on_error)
-
-            # Wait for completion with timeout
-            timeout = 10.0  # 10 second timeout
-            start_time = time.time()
-            while not self._sync_done and (time.time() - start_time) < timeout:
-                time.sleep(0.1)  # Small delay
-
-            if self._sync_error:
-                print(f"Deal history request failed: {self._sync_error}")
-                return 0.0
-
-            return self._sync_result if self._sync_result is not None else 0.0
+            return total_profit
 
         except Exception as e:
-            print(f"Error in get_closed_profit_sync: {e}")
+            logger.error(f"Error calculating closed profit: {e}")
             return 0.0
 
-    def _update_positions_cache(self):
-        """Update positions cache asynchronously"""
-        def on_positions(message):
-            try:
-                positions_data = Protobuf.extract(message)
-                positions = []
-                if hasattr(positions_data, 'position'):
-                    positions = list(positions_data.position)
+    # Market Data Subscriptions
 
-                self._positions_cache = positions
-                self._last_positions_update = time.time()
-                print(f"Updated positions cache: {len(positions)} positions")
-            except Exception as e:
-                print(f"Error updating positions cache: {e}")
+    async def subscribe_to_spots(self, symbol_id: int, include_timestamp: bool = True, timeout: int = 10):
+        """
+        Subscribe to spot (tick) data for a symbol.
 
-        def on_error(failure):
-            print(f"Error fetching positions: {failure}")
-            # Don't spam errors if we already have cached data
-            if not self._positions_cache:
-                print("Warning: No positions data available")
+        Args:
+            symbol_id: Symbol ID to subscribe to
+            include_timestamp: Include timestamp in tick data
+            timeout: Request timeout in seconds
+        """
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
 
+        request = ProtoOASubscribeSpotsReq()
+        request.ctidTraderAccountId = self.account_id
+        request.symbolId.append(symbol_id)
+        request.subscribeToSpotTimestamp = include_timestamp
+
+        logger.info(f"Subscribing to spots for symbol {symbol_id}")
+        return await self.client.send_message(request, timeout=timeout)
+
+    async def unsubscribe_from_spots(self, symbol_id: int, timeout: int = 10):
+        """
+        Unsubscribe from spot data for a symbol.
+
+        Args:
+            symbol_id: Symbol ID to unsubscribe from
+            timeout: Request timeout in seconds
+        """
+        if not self.is_authenticated:
+            raise Exception("Account not authenticated")
+
+        request = ProtoOAUnsubscribeSpotsReq()
+        request.ctidTraderAccountId = self.account_id
+        request.symbolId.append(symbol_id)
+
+        logger.info(f"Unsubscribing from spots for symbol {symbol_id}")
+        return await self.client.send_message(request, timeout=timeout)
+
+    # Event Handlers
+
+    async def _handle_execution_event(self, message):
+        """Handle execution events (order/position updates)."""
         try:
-            deferred = self.list_positions()
-            deferred.addTimeout(20.0, self._client._runningReactor)  # 20 second timeout
-            deferred.addCallback(on_positions)
-            deferred.addErrback(on_error)
-        except Exception as e:
-            print(f"Error requesting positions update: {e}")
+            execution_data = Protobuf.extract(message)
+            logger.info(f"Execution event: {execution_data}")
 
-    def _update_symbols_cache(self):
-        """Update symbols cache asynchronously"""
-        def on_symbols(message):
-            try:
-                symbols_data = Protobuf.extract(message)
-                symbols = {}
-                if hasattr(symbols_data, 'symbol'):
-                    for symbol in symbols_data.symbol:
-                        symbols[symbol.symbolName.upper()] = {
-                            'symbolId': symbol.symbolId,
-                            'symbolName': symbol.symbolName,
-                            'minVolume': symbol.minVolume if hasattr(symbol, 'minVolume') else 100000,
-                        }
-
-                self._symbols_cache = symbols
-                self._last_symbols_update = time.time()
-                print(f"Updated symbols cache: {len(symbols)} symbols")
-            except Exception as e:
-                print(f"Error updating symbols cache: {e}")
-
-        def on_error(failure):
-            print(f"Error fetching symbols: {failure}")
-            # Don't spam errors if we already have cached data
-            if not self._symbols_cache:
-                print("Warning: No symbols data available")
-
-        try:
-            deferred = self.list_symbols()
-            deferred.addTimeout(20.0, self._client._runningReactor)  # 20 second timeout
-            deferred.addCallback(on_symbols)
-            deferred.addErrback(on_error)
-        except Exception as e:
-            print(f"Error requesting symbols update: {e}")
-
-    def _request_deal_history_sync(self, from_timestamp, to_timestamp, callback, errback):
-        """Request deal history synchronously"""
-        try:
-            from twisted.internet import reactor
-
-            request = ProtoOADealListReq()
-            request.payloadType = ProtoOAPayloadType.PROTO_OA_DEAL_LIST_REQ
-            request.ctidTraderAccountId = self._account_id
-            request.fromTimestamp = from_timestamp
-            request.toTimestamp = to_timestamp
-            request.maxRows = 100
-
-            deferred = self._client.send(request)
-            deferred.addTimeout(25.0, reactor)  # 25 second timeout, longer than client default
-            deferred.addCallback(callback)
-            deferred.addErrback(errback)
+            # Update positions cache when positions change
+            if hasattr(execution_data, 'position'):
+                asyncio.create_task(self.update_positions_cache())
 
         except Exception as e:
-            print(f"Error requesting deal history: {e}")
-            errback(e)
+            logger.error(f"Error handling execution event: {e}")
+
+    async def _handle_spot_event(self, message):
+        """Handle spot events (tick data)."""
+        try:
+            spot_data = Protobuf.extract(message)
+            # This will be handled by the bot's on_tick method
+            # Just log for debugging
+            logger.debug(f"Spot event for symbol {spot_data.symbolId}")
+
+        except Exception as e:
+            logger.error(f"Error handling spot event: {e}")
+
+    # Properties
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Check if both app and account are authenticated."""
+        return self.is_app_authorized and self.is_account_authorized
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if client is connected."""
+        return self.client.is_connected

@@ -1,120 +1,151 @@
 #!/usr/bin/env python
+"""
+Modern Bot framework using async/await instead of Twisted.
+Provides event-driven callbacks for tick and bar data with a clean interface.
+"""
 
-
-from typing import Dict
+import asyncio
 import logging
-from ctrader_open_api import Client, TcpProtocol, EndPoints
-from ctrader_open_api.trade_client import TradeClient
-from ctrader_open_api.protobuf import Protobuf
-from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import *
+from typing import Dict, Optional, Callable, Any
+
+from ctrader_open_api.modern_client import ModernClient
+from ctrader_open_api.modern_trade_client import ModernTradeClient
+from ctrader_open_api.endpoints import EndPoints
 from ctrader_open_api.messages.OpenApiMessages_pb2 import *
-from twisted.internet import reactor
+from ctrader_open_api.messages.OpenApiModelMessages_pb2 import *
+from ctrader_open_api.protobuf import Protobuf
 
 
-class Bot:
+logger = logging.getLogger(__name__)
+
+
+class ModernBot:
     """
-    High-level bot framework for cTrader Open API.
-    Provides event-driven callbacks for tick and bar data.
+    Modern high-level bot framework for cTrader Open API.
+    Provides event-driven callbacks for tick and bar data using async/await.
     """
 
     def __init__(
-            self,
-            auth: Dict,
-            host_type="demo"):
+        self,
+        auth: Dict,
+        host_type: str = "demo",
+        max_messages_per_second: int = 5,
+        auto_authenticate: bool = True
+    ):
         """
-        Initialize Bot with TradeClient instance.
+        Initialize ModernBot with async client.
 
         Args:
-            host_type (str): 'demo' or 'live' for server selection
+            auth: Dictionary containing authentication credentials
+            host_type: 'demo' or 'live' for server selection
+            max_messages_per_second: Rate limit for outgoing messages
+            auto_authenticate: Whether to authenticate automatically on connection
         """
-        # Select appropriate host based on type
+        # Select appropriate host
         if host_type.lower() == "live":
             host = EndPoints.PROTOBUF_LIVE_HOST
         else:
             host = EndPoints.PROTOBUF_DEMO_HOST
 
         self.auth = auth
+        self.host_type = host_type
+        self.auto_authenticate = auto_authenticate
 
-        # Create client instance
-        self._client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
+        # Create modern client
+        self.client = ModernClient(
+            host=host,
+            port=EndPoints.PROTOBUF_PORT,
+            max_messages_per_second=max_messages_per_second
+        )
 
-        # Initialize TradeClient with the client
-        self.trade_client = TradeClient(self._client, auth)
+        # Create trade client
+        self.trade_client = ModernTradeClient(self.client, auth)
 
-        # Set up event callbacks
-        self._client._connectedCallback = self._on_connected
-        self._client._disconnectedCallback = self._on_disconnected
-        self._client._messageReceivedCallback = self._on_message_received
+        # Setup event handlers
+        self._setup_event_handlers()
 
         # Internal state
-        self._is_running = False
+        self.is_running = False
+        self.main_task: Optional[asyncio.Task] = None
 
-    def start(self):
+    def _setup_event_handlers(self):
+        """Setup event handlers for client events."""
+        # Connection events
+        self.client.add_connection_callback(self._on_client_connected)
+        self.client.add_disconnection_callback(self._on_client_disconnected)
+
+        # Message events
+        self.client.add_message_handler(
+            ProtoOASpotEvent().payloadType,
+            self._on_spot_event_received
+        )
+
+        self.client.add_message_handler(
+            ProtoOAGetTrendbarsRes().payloadType,
+            self._on_trendbar_event_received
+        )
+
+        self.client.add_message_handler(
+            ProtoOAExecutionEvent().payloadType,
+            self._on_execution_event_received
+        )
+
+    async def start(self):
         """
-        Start the bot by invoking client.startService() and reactor.
+        Start the bot by connecting to the server and running the event loop.
         """
-        print("Starting bot...")
-        self._is_running = True
-        self._client.startService()
+        logger.info("Starting modern bot...")
+        self.is_running = True
 
-        # Only run reactor if it's not already running
-        if not reactor.running:
-            reactor.run()
+        try:
+            # Connect to server
+            if not await self.client.connect():
+                logger.error("Failed to connect to server")
+                return False
 
-    def stop(self):
+            logger.info("Bot started successfully")
+
+            # Keep the bot running
+            while self.is_running:
+                await asyncio.sleep(1)
+
+            return True
+
+        except KeyboardInterrupt:
+            logger.info("Bot stopped by user")
+        except Exception as e:
+            logger.error(f"Error in bot: {e}")
+        finally:
+            await self.stop()
+
+    async def stop(self):
         """
-        Stop the bot and client service.
+        Stop the bot and disconnect from server.
         """
-        print("Stopping bot...")
-        self._is_running = False
-        if self._client.running:
-            self._client.stopService()
+        logger.info("Stopping bot...")
+        self.is_running = False
 
-        # Stop reactor if it's running
-        if reactor.running:
-            reactor.stop()
+        await self.client.disconnect()
+        logger.info("Bot stopped")
 
-    def _on_connected(self, client):
-        """Internal callback for client connection."""
-        print("Bot connected to cTrader server")
-        self.on_connected()
+    # Event Handlers (Override these in your bot implementation)
 
-    def _on_disconnected(self, client, reason):
-        """Internal callback for client disconnection."""
-        print(f"Bot disconnected from cTrader server: {reason}")
-        self.on_disconnected(reason)
-
-    def _on_message_received(self, client, message):
-        """Internal callback for processing incoming messages."""
-        # Filter out heartbeat messages (payloadType 51)
-        if message.payloadType == 51:  # ProtoHeartbeatEvent
-            return
-
-        # Handle different message types
-        if message.payloadType == ProtoOASpotEvent().payloadType:
-            # Tick data received
-            spot_event = Protobuf.extract(message)
-            self.on_tick(spot_event)
-
-        elif message.payloadType == ProtoOAGetTrendbarsRes().payloadType:
-            # Bar data received
-            trendbar_response = Protobuf.extract(message)
-            self.on_bar(trendbar_response)
-
-        else:
-            # Handle other message types (but not heartbeats)
-            self.on_message(message)
-
-    # Override these methods in your bot implementation
-    def on_connected(self):
+    async def on_connected(self):
         """
         Called when bot connects to cTrader server.
         Override this method in your bot implementation.
         """
-        print("Authenticating...")
-        self._auth()
+        logger.info("Bot connected to cTrader server")
 
-    def on_disconnected(self, reason):
+        if self.auto_authenticate:
+            logger.info("Authenticating...")
+            success = await self.trade_client.authenticate()
+            if success:
+                logger.info("Authentication successful")
+            else:
+                logger.error("Authentication failed")
+
+    async def on_disconnected(self, reason: str):
         """
         Called when bot disconnects from cTrader server.
         Override this method in your bot implementation.
@@ -122,9 +153,9 @@ class Bot:
         Args:
             reason: Disconnection reason
         """
-        print("on_disconnected")
+        logger.info(f"Bot disconnected: {reason}")
 
-    def on_tick(self, spot_event=None):
+    async def on_tick(self, spot_event=None):
         """
         Called when tick data is received.
         Override this method in your bot implementation.
@@ -134,15 +165,17 @@ class Bot:
         """
         if spot_event:
             # Display useful tick information
-            print(f"📈 Tick received - Symbol ID: {spot_event.symbolId}")
+            logger.debug(f"📈 Tick received - Symbol ID: {spot_event.symbolId}")
             if hasattr(spot_event, 'bid') and hasattr(spot_event, 'ask'):
-                print(f"   Bid: {spot_event.bid/1e5:.5f}, Ask: {spot_event.ask/1e5:.5f}")
+                bid_price = spot_event.bid / 1e5
+                ask_price = spot_event.ask / 1e5
+                logger.debug(f"   Bid: {bid_price:.5f}, Ask: {ask_price:.5f}")
             if hasattr(spot_event, 'timestamp'):
-                print(f"   Timestamp: {spot_event.timestamp}")
+                logger.debug(f"   Timestamp: {spot_event.timestamp}")
         else:
-            print("on_tick - no data")
+            logger.debug("on_tick - no data")
 
-    def on_bar(self, trendbar_response=None):
+    async def on_bar(self, trendbar_response=None):
         """
         Called when bar data is received.
         Override this method in your bot implementation.
@@ -150,9 +183,20 @@ class Bot:
         Args:
             trendbar_response: ProtoOAGetTrendbarsRes message containing bar data
         """
-        print("on_bar")
+        logger.debug("on_bar")
 
-    def on_message(self, message):
+    async def on_execution(self, execution_event=None):
+        """
+        Called when execution events are received (orders/positions).
+        Override this method in your bot implementation.
+
+        Args:
+            execution_event: ProtoOAExecutionEvent message
+        """
+        if execution_event:
+            logger.info(f"Execution event: {execution_event}")
+
+    async def on_message(self, message):
         """
         Called for all received messages.
         Override this method to handle custom message processing.
@@ -160,175 +204,195 @@ class Bot:
         Args:
             message: Raw protobuf message
         """
+        # Default: do nothing
         pass
-        # message_content = Protobuf.extract(message)
-        # print(f"type: {message.payloadType} message content:", str(message_content))
+
+    # Internal Event Handlers
+
+    async def _on_client_connected(self, client):
+        """Internal callback for client connection."""
+        await self.on_connected()
+
+    async def _on_client_disconnected(self, client, reason):
+        """Internal callback for client disconnection."""
+        await self.on_disconnected(reason)
+
+    async def _on_spot_event_received(self, message):
+        """Internal callback for spot events."""
+        spot_event = Protobuf.extract(message)
+        await self.on_tick(spot_event)
+
+    async def _on_trendbar_event_received(self, message):
+        """Internal callback for trendbar events."""
+        trendbar_response = Protobuf.extract(message)
+        await self.on_bar(trendbar_response)
+
+    async def _on_execution_event_received(self, message):
+        """Internal callback for execution events."""
+        execution_event = Protobuf.extract(message)
+        await self.on_execution(execution_event)
 
     # Convenience methods for common operations
-    def subscribe_to_spots(self, symbol_id, timeout_seconds=3600):
+
+    async def subscribe_to_spots(
+        self,
+        symbol_id: int,
+        include_timestamp: bool = True
+    ) -> bool:
         """
         Subscribe to spot (tick) data for a symbol.
 
         Args:
-            symbol_id (int): Symbol ID to subscribe to
-            timeout_seconds (int): Subscription timeout in seconds
+            symbol_id: Symbol ID to subscribe to
+            include_timestamp: Include timestamp in tick data
 
         Returns:
-            twisted.internet.defer.Deferred: Promise for subscription result
+            bool: True if subscription successful, False otherwise
         """
-        if not self.trade_client.is_authenticated:
-            raise Exception("Must authenticate before subscribing to data")
+        try:
+            if not self.trade_client.is_authenticated:
+                logger.error("Must authenticate before subscribing to data")
+                return False
 
-        request = ProtoOASubscribeSpotsReq()
-        request.ctidTraderAccountId = self.trade_client.account_id
-        request.symbolId.append(symbol_id)
-        request.subscribeToSpotTimestamp = True
+            response = await self.trade_client.subscribe_to_spots(
+                symbol_id, include_timestamp
+            )
 
-        return self._client.send(request)
+            if response:
+                logger.info(f"✅ Successfully subscribed to symbol {symbol_id} tick data")
+                return True
+            else:
+                logger.error(f"❌ Failed to subscribe to symbol {symbol_id}")
+                return False
 
-    def get_trendbars(self, symbol_id, period, count=1000):
+        except Exception as e:
+            logger.error(f"❌ Failed to subscribe to symbol {symbol_id}: {e}")
+            return False
+
+    async def get_trendbars(
+        self,
+        symbol_id: int,
+        period: int,
+        count: int = 1000,
+        timeout: int = 15
+    ):
         """
         Request historical bar data.
 
         Args:
-            symbol_id (int): Symbol ID
-            period (ProtoOATrendbarPeriod): Bar period (e.g., ProtoOATrendbarPeriod.M1)
-            count (int): Number of bars to retrieve
+            symbol_id: Symbol ID
+            period: Bar period (e.g., ProtoOATrendbarPeriod.M1)
+            count: Number of bars to retrieve
+            timeout: Request timeout in seconds
 
         Returns:
-            twisted.internet.defer.Deferred: Promise for bar data
+            Trendbar response or None if failed
         """
-        if not self.trade_client.is_authenticated:
-            raise Exception("Must authenticate before requesting data")
-
-        request = ProtoOAGetTrendbarsReq()
-        request.ctidTraderAccountId = self.trade_client.account_id
-        request.symbolId = symbol_id
-        request.period = period
-        request.count = count
-
-        return self._client.send(request)
-
-
-    def _auth(self):
-        """
-        Perform application and account authentication.
-
-        Args:
-            client_id (str): Application client ID
-            secret (str): Application client secret
-            account_id (int): Account ID for trading
-            account_token (str): Account access token
-
-        Returns:
-            twisted.internet.defer.Deferred: Promise that resolves when auth is complete
-        """
-
-        account_id = self.auth.get("account_id")
-        account_token = self.auth.get("account_token")
-        client_id = self.auth.get("client_id")
-        secret = self.auth.get("client_secret")
-
-        def on_app_auth_response(message):
-            """Handle application auth response"""
-            if message.payloadType == ProtoOAApplicationAuthRes().payloadType:
-                self.trade_client._is_app_authorized = True
-                print("Application authenticated successfully")
-
-                # Now perform account authentication
-                account_request = ProtoOAAccountAuthReq()
-                account_request.ctidTraderAccountId = account_id
-                account_request.accessToken = account_token
-
-                account_deferred = self._client.send(account_request)
-                account_deferred.addCallback(on_account_auth_response)
-                account_deferred.addErrback(on_auth_error)
-            else:
-                print("Application authentication failed - unexpected response type")
-
-        def on_account_auth_response(message):
-            """Handle account auth response"""
-            if message.payloadType == ProtoOAAccountAuthRes().payloadType:
-                self.trade_client._is_account_authorized = True
-                self.trade_client._account_id = account_id
-                print(f"Account {account_id} authenticated successfully")
-            else:
-                print("Account authentication failed - unexpected response type")
-            
-            # # This is a test for place limit order.
-            # self.trade_client.place_limit_order(
-            #     symbol_id=41,  # XAUUSD
-            #     trade_side='BUY',
-            #     price=4200/1e5,
-            #     volume=100  # 0.01 lots
-            # ).addCallback(lambda result: print("Market order executed:", result)
-            # ).addErrback(lambda error: print("Error executing market order:", error)
-            # )
-
-            self.trade_client.list_symbols().addCallback(print_symbols)
-
-            # Subscribe to ticks after authentication is complete
-            self.subscribe_to_ticks("XAUUSD", True)
-        def print_symbols(result):
-            symbols = Protobuf.extract(result)
-            for s in symbols.symbol:
-                if "XAUUSD" in s.symbolName:
-                    print(s)
-
-        def on_auth_error(failure):
-            """Handle authentication errors"""
-            print(f"Authentication error: {failure}")
-
-        # First perform application authentication
-        app_request = ProtoOAApplicationAuthReq()
-        app_request.clientId = client_id
-        app_request.clientSecret = secret
-
-        app_deferred = self._client.send(app_request)
-        app_deferred.addCallback(on_app_auth_response)
-        app_deferred.addErrback(on_auth_error)
-
-    @property
-    def is_running(self):
-        """Check if bot is currently running."""
-        return self._is_running
-
-    @property
-    def is_connected(self):
-        """Check if bot is connected to cTrader server."""
-        return self._client.isConnected
-    
-    def on_tick_subscription_success(self, result, symbol_id: int, symbol_name: str):
-        """Tick subscription successful"""
-        print(f"✅ Successfully subscribed to {symbol_name} tick data")
-
-    def subscribe_to_ticks(self, symbol_name: str, subscribe_to_timestamp: bool = True):
-        """
-        Subscribe to tick data for a symbol
-
-        Args:
-            symbol_name (str): Symbol name (e.g., "EURUSD")
-            subscribe_to_timestamp (bool): Include timestamp in tick data
-        """
-
-        print(f"📊 Subscribing to {symbol_name} tick data...")
-
-        symbol_id = 41  # hard code
-
         try:
-            request = ProtoOASubscribeSpotsReq()
-            request.ctidTraderAccountId = self.auth.get("account_id")
-            request.symbolId.append(symbol_id)
-            request.subscribeToSpotTimestamp = subscribe_to_timestamp
+            if not self.trade_client.is_authenticated:
+                raise Exception("Must authenticate before requesting data")
 
-            deferred = self._client.send(request)
-            deferred.addCallbacks(
-                lambda result, sym_id=symbol_id, sym_name=symbol_name: self.on_tick_subscription_success(result, sym_id, sym_name),
-                # self.on_error
-            )
+            request = ProtoOAGetTrendbarsReq()
+            request.ctidTraderAccountId = self.trade_client.account_id
+            request.symbolId = symbol_id
+            request.period = period
+            request.count = count
 
-            return True
+            return await self.client.send_message(request, timeout=timeout)
 
         except Exception as e:
-            print(f"❌ Failed to subscribe to {symbol_name} ticks: {e}")
-            return False
+            logger.error(f"Error getting trendbars: {e}")
+            return None
+
+    # Helper methods
+
+    async def find_symbol_by_name(self, symbol_name: str) -> Optional[Dict]:
+        """
+        Find symbol information by name.
+
+        Args:
+            symbol_name: Symbol name (e.g., "EURUSD")
+
+        Returns:
+            Symbol information dict or None if not found
+        """
+        symbols = await self.trade_client.get_symbols()
+        return symbols.get(symbol_name.upper())
+
+    async def wait_for_authentication(self, timeout: int = 30) -> bool:
+        """
+        Wait for authentication to complete.
+
+        Args:
+            timeout: Maximum time to wait in seconds
+
+        Returns:
+            bool: True if authenticated, False if timeout
+        """
+        start_time = asyncio.get_event_loop().time()
+        while not self.trade_client.is_authenticated:
+            if asyncio.get_event_loop().time() - start_time > timeout:
+                return False
+            await asyncio.sleep(0.1)
+        return True
+
+    # Properties
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Check if bot is authenticated."""
+        return self.trade_client.is_authenticated
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if bot is connected to server."""
+        return self.client.is_connected
+
+    @property
+    def account_id(self) -> int:
+        """Get the account ID."""
+        return self.trade_client.account_id
+
+
+# Utility function to run a bot
+async def run_bot(bot_class, auth: Dict, **kwargs):
+    """
+    Utility function to run a bot with proper error handling.
+
+    Args:
+        bot_class: Bot class to instantiate
+        auth: Authentication credentials
+        **kwargs: Additional arguments for bot constructor
+    """
+    bot = bot_class(auth, **kwargs)
+    try:
+        await bot.start()
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Bot error: {e}")
+    finally:
+        if bot.is_running:
+            await bot.stop()
+
+
+def run_bot_sync(bot_class, auth: Dict, **kwargs):
+    """
+    Synchronous wrapper to run a bot (for backwards compatibility).
+
+    Args:
+        bot_class: Bot class to instantiate
+        auth: Authentication credentials
+        **kwargs: Additional arguments for bot constructor
+    """
+    asyncio.run(run_bot(bot_class, auth, **kwargs))
+
+
+if __name__ == "__main__":
+    auth = {
+        "client_id": "7870_AGNoUDByyfLOPTiKMGwZHQbK5whzvUNo2BpTCsTXff3ajFz8my",
+        "client_secret": "0xtJwsbjTul1lmjjOI5rwSaViVIhcMJNqW8bWNzARwHVwQdeuA",
+        "account_id": 45416297,
+        "account_token": "-KwZawTvJbMvSGaPaQ-Rrt96CltxaiCsWAEK_6IuSDE",
+    }
+    run_bot_sync(ModernBot, auth)
