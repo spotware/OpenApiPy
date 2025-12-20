@@ -70,7 +70,7 @@ def validate_config(config: dict):
     # Required risk manager parameters
     required_risk = [
         'allowed_symbols', 'hedge_symbols', 'freeze_minutes',
-        'max_lot_volume', 'loss_threshold', 'hedge_time'
+        'max_lot_volume', 'loss_threshold', 'hedge_time', 'risk_check_interval'
     ]
     risk_config = config['risk_manager_config']
     for key in required_risk:
@@ -95,6 +95,9 @@ def validate_config(config: dict):
 
     if not isinstance(risk_config['hedge_time'], str):
         raise ValueError("hedge_time must be a string in HH:MM format")
+
+    if not isinstance(risk_config['risk_check_interval'], (int, float)) or risk_config['risk_check_interval'] <= 0:
+        raise ValueError("risk_check_interval must be a positive number")
 
     # Validate hedge time format
     try:
@@ -131,13 +134,14 @@ class RiskManagerBot(Bot):
                 "freeze_minutes": 60,
                 "max_lot_volume": 0.08,
                 "loss_threshold": 0.01,
-                "hedge_time": "17:00"
+                "hedge_time": "17:00",
+                "risk_check_interval": 5.0
             }
 
         # Validate all required parameters are present
         required_params = [
             'allowed_symbols', 'hedge_symbols', 'freeze_minutes',
-            'max_lot_volume', 'loss_threshold', 'hedge_time'
+            'max_lot_volume', 'loss_threshold', 'hedge_time', 'risk_check_interval'
         ]
 
         for param in required_params:
@@ -151,7 +155,7 @@ class RiskManagerBot(Bot):
 
         # Risk management configuration
         self.risk_manager = RiskManager(
-            trade_client=self.trade_client,
+            bot=self,
             allowed_symbols=config["allowed_symbols"],
             hedge_symbols=config["hedge_symbols"],
             freeze_minutes=config["freeze_minutes"],
@@ -159,6 +163,11 @@ class RiskManagerBot(Bot):
             loss_threshold=config["loss_threshold"],
             hedge_time=hedge_time,
         )
+
+        # Background task configuration
+        self.risk_check_interval = float(config["risk_check_interval"])
+        self._risk_check_task = None
+        self._running = False
 
 
     async def on_connected(self):
@@ -172,6 +181,9 @@ class RiskManagerBot(Bot):
             # Subscribe to spot prices for all symbols we care about
             all_symbols = self.risk_manager.allowed_symbols
             await self.subscribe_to_symbol_spots(all_symbols)
+
+            # Start background risk management task
+            await self._start_risk_management_task()
         else:
             logger.error("Authentication failed, risk management not started")
 
@@ -179,25 +191,71 @@ class RiskManagerBot(Bot):
         """Called when disconnected from cTrader server."""
         logger.warning(f"Disconnected: {reason}")
 
+        # Stop the risk management task
+        await self._stop_risk_management_task()
+
         await super().on_disconnected(reason)
 
     async def on_tick(self, message=None):
         """
         Called on every tick - this is where risk management runs.
         """
-        
+
         await super().on_tick(message)
 
-        try:
-            # Execute risk management logic asynchronously
-            await self.risk_manager.act_async()
+        # Risk management is now handled by the background task
+        # No longer needed here to avoid duplicate execution
 
-        except Exception as e:
-            logger.error(f"Error in risk management: {e}")
+    async def _start_risk_management_task(self):
+        """Start the background risk management task."""
+        if self._risk_check_task is not None:
+            logger.warning("Risk management task is already running")
+            return
+
+        self._running = True
+        self._risk_check_task = asyncio.create_task(self._risk_management_loop())
+        logger.info(f"Started background risk management task (interval: {self.risk_check_interval}s)")
+
+    async def _stop_risk_management_task(self):
+        """Stop the background risk management task."""
+        self._running = False
+
+        if self._risk_check_task:
+            self._risk_check_task.cancel()
+            try:
+                await self._risk_check_task
+            except asyncio.CancelledError:
+                pass
+            self._risk_check_task = None
+            logger.info("Stopped background risk management task")
+
+    async def _risk_management_loop(self):
+        """Main background loop that runs risk management checks periodically."""
+        logger.info("Risk management background loop started")
+
+        while self._running:
+            try:
+                # Execute risk management logic
+                await self.risk_manager.act_async()
+
+            except Exception as e:
+                logger.error(f"Error in risk management background task: {e}")
+
+            # Wait for the configured interval before next check
+            try:
+                await asyncio.sleep(self.risk_check_interval)
+            except asyncio.CancelledError:
+                logger.info("Risk management loop cancelled")
+                break
+
+        logger.info("Risk management background loop ended")
 
     async def stop(self):
         """Stop the bot and cleanup."""
         logger.info("Stopping risk manager bot...")
+
+        # Stop the risk management task first
+        await self._stop_risk_management_task()
 
         await super().stop()
 
@@ -218,6 +276,28 @@ class RiskManagerBot(Bot):
                 timestamp = price_data.get('timestamp', 'N/A')
                 logger.info(f"   Symbol ID {symbol_id}: Bid={bid}, Ask={ask}, Timestamp={timestamp}")
 
+    def get_risk_management_status(self) -> dict:
+        """Get current status of the risk management background task."""
+        return {
+            "task_running": self._running,
+            "task_exists": self._risk_check_task is not None,
+            "task_done": self._risk_check_task.done() if self._risk_check_task else None,
+            "interval_seconds": self.risk_check_interval,
+            "symbols_monitored": len(self.risk_manager.allowed_symbols),
+            "hedge_symbols": len(self.risk_manager.hedge_symbols)
+        }
+
+    def print_risk_management_status(self):
+        """Print current risk management status for debugging."""
+        status = self.get_risk_management_status()
+        logger.info("🔧 Risk Management Status:")
+        logger.info(f"   Task Running: {status['task_running']}")
+        logger.info(f"   Task Exists: {status['task_exists']}")
+        logger.info(f"   Task Done: {status['task_done']}")
+        logger.info(f"   Check Interval: {status['interval_seconds']}s")
+        logger.info(f"   Symbols Monitored: {status['symbols_monitored']}")
+        logger.info(f"   Hedge Symbols: {status['hedge_symbols']}")
+
 
 class RiskManager:
     """
@@ -227,7 +307,7 @@ class RiskManager:
 
     def __init__(
         self,
-        trade_client,
+        bot,
         allowed_symbols: List[str],
         hedge_symbols: List[str],
         freeze_minutes: int,
@@ -236,19 +316,19 @@ class RiskManager:
         hedge_time,
     ):
         """
-        Initialize with modern trade client.
+        Initialize with bot instance for access to inherited methods.
 
         Args:
-            trade_client: TradeClient instance
+            bot: RiskManagerBot instance (provides access to get_price and trade_client)
             allowed_symbols: List of allowed trading symbols
             hedge_symbols: List of hedge symbols
             freeze_minutes: Minutes to freeze trading after loss threshold
             max_lot_volume: Maximum lot volume per symbol
             loss_threshold: Loss threshold to trigger position closing
             hedge_time: Time to create hedge positions
-            random_trade: Enable random trading for testing
         """
-        self.trade_client = trade_client
+        self.bot = bot
+        self.trade_client = bot.trade_client
         self.allowed_symbols = [s.upper() for s in allowed_symbols]
         self.hedge_symbols = [s.upper() for s in hedge_symbols]
         self.freeze_minutes = int(freeze_minutes)
@@ -375,13 +455,9 @@ class RiskManager:
 
             # Get trade data
             trade_data = position.tradeData
-            volume_lots = trade_data.volume / 1e7  # Convert from cents to lots
+
             trade_side = trade_data.tradeSide  # 1 = BUY, 2 = SELL
             symbol_id = trade_data.symbolId
-
-            # Get entry price from deals
-            entry_price = position.price
-
 
             # Get symbol info.
             symbol_info = None
@@ -393,12 +469,23 @@ class RiskManager:
             if not symbol_info:
                 raise ValueError(f"Symbol info not found for symbol ID {symbol_id}")
 
+            symbol_name = symbol_info.get('symbolName', '')
+
+            if "XAUUSD" in symbol_name:
+                conversion = 1e4
+            else:
+                conversion = 1e7
+            volume_lots = trade_data.volume / conversion  # Convert from cents to lots
+
+            # Get entry price
+            entry_price = position.price
+
             # Get current market price from trade client
-            current_price = self.get_price(symbol_id, trade_side)
+            current_price = self.bot.get_price(symbol_id, trade_side)
 
             # Calculate price movement P&L
             # Get pip value for proper calculation
-            symbol_name = symbol_info.get('symbolName', '')
+            
             pip_position = 1e5  # Default for most forex pairs (5 decimal places)
 
             # Adjust pip position based on symbol type

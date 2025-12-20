@@ -6,6 +6,7 @@ Provides event-driven callbacks for tick and bar data with a clean interface.
 
 import asyncio
 import logging
+import time
 from typing import Dict, Optional, List
 from ctrader_open_api.client import Client
 from ctrader_open_api.trade_client import TradeClient
@@ -263,12 +264,18 @@ class Bot:
                 symbol_info = symbols_data.get(symbol_name.upper())
                 if symbol_info:
                     symbol_ids.append(symbol_info['symbolId'])
+                    logger.info(f"Found symbol {symbol_name} with ID {symbol_info['symbolId']}")
+                else:
+                    logger.warning(f"Symbol {symbol_name} not found in available symbols")
 
-            success = await self.subscribe_to_spots(symbol_ids, include_timestamp=True)
-            if success:
-                logger.info(f"✅ Subscribed to {symbol_name} ({len(symbol_ids)} symbols")
+            if symbol_ids:
+                success = await self.subscribe_to_spots(symbol_ids, include_timestamp=True)
+                if success:
+                    logger.info(f"✅ Subscribed to {len(symbol_ids)} symbols: {symbol_name_list}")
+                else:
+                    logger.error(f"❌ Failed to subscribe to spot prices for symbols: {symbol_name_list}")
             else:
-                logger.error(f"❌ Failed to subscribe to spot prices")
+                logger.error(f"❌ No valid symbols found from: {symbol_name_list}")
 
         except Exception as e:
             logger.error(f"Error setting up spot price subscriptions: {e}")

@@ -513,10 +513,10 @@ class TradeClient:
         request = ProtoOASubscribeSpotsReq()
         request.ctidTraderAccountId = self.account_id
 
-        # for s in symbol_ids:
-        #     request.symbolId.append(s)
+        for s in symbol_ids:
+            request.symbolId.append(s)
 
-        request.symbolId.append(41)
+        # request.symbolId.append(41)
         request.subscribeToSpotTimestamp = include_timestamp
 
         logger.info(f"Subscribing to spots for symbols {symbol_ids}")
