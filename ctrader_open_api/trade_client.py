@@ -47,23 +47,6 @@ class TradeClient:
         self.last_symbols_update: Optional[float] = None
         self.cache_timeout = 30  # 30 seconds
 
-        # Setup event handlers
-        self._setup_event_handlers()
-
-    def _setup_event_handlers(self):
-        """Setup event handlers for real-time updates."""
-        # Handle execution events (order/position updates)
-        self.client.add_message_handler(
-            ProtoOAExecutionEvent().payloadType,
-            self._handle_execution_event
-        )
-
-        # Handle spot events (tick data)
-        self.client.add_message_handler(
-            ProtoOASpotEvent().payloadType,
-            self._handle_spot_event
-        )
-
     async def authenticate(self) -> bool:
         """
         Perform application and account authentication.
@@ -515,7 +498,7 @@ class TradeClient:
 
     # Market Data Subscriptions
 
-    async def subscribe_to_spots(self, symbol_id: int, include_timestamp: bool = True, timeout: int = 10):
+    async def subscribe_to_spots(self, symbol_ids: List[int], include_timestamp: bool = True, timeout: int = 20):
         """
         Subscribe to spot (tick) data for a symbol.
 
@@ -529,13 +512,15 @@ class TradeClient:
 
         request = ProtoOASubscribeSpotsReq()
         request.ctidTraderAccountId = self.account_id
-        request.symbolId.append(symbol_id)
+
+        for s in symbol_ids:
+            request.symbolId.append(s)
         request.subscribeToSpotTimestamp = include_timestamp
 
-        logger.info(f"Subscribing to spots for symbol {symbol_id}")
+        logger.info(f"Subscribing to spots for symbols {symbol_ids}")
         return await self.client.send_message(request, timeout=timeout)
 
-    async def unsubscribe_from_spots(self, symbol_id: int, timeout: int = 10):
+    async def unsubscribe_from_spots(self, symbol_ids: List[int], timeout: int = 10):
         """
         Unsubscribe from spot data for a symbol.
 
@@ -548,36 +533,11 @@ class TradeClient:
 
         request = ProtoOAUnsubscribeSpotsReq()
         request.ctidTraderAccountId = self.account_id
-        request.symbolId.append(symbol_id)
+        for s in symbol_ids:
+            request.symbolId.append(s)
 
-        logger.info(f"Unsubscribing from spots for symbol {symbol_id}")
+        logger.info(f"Unsubscribing from spots for symbols {symbol_ids}")
         return await self.client.send_message(request, timeout=timeout)
-
-    # Event Handlers
-
-    async def _handle_execution_event(self, message):
-        """Handle execution events (order/position updates)."""
-        try:
-            execution_data = Protobuf.extract(message)
-            logger.info(f"Execution event: {execution_data}")
-
-            # Update positions cache when positions change
-            if hasattr(execution_data, 'position'):
-                asyncio.create_task(self.update_positions_cache())
-
-        except Exception as e:
-            logger.error(f"Error handling execution event: {e}")
-
-    async def _handle_spot_event(self, message):
-        """Handle spot events (tick data)."""
-        try:
-            spot_data = Protobuf.extract(message)
-            # This will be handled by the bot's on_tick method
-            # Just log for debugging
-            logger.debug(f"Spot event for symbol {spot_data.symbolId}")
-
-        except Exception as e:
-            logger.error(f"Error handling spot event: {e}")
 
     # Properties
 

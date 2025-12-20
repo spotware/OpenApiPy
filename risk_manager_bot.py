@@ -18,7 +18,7 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAReconcileReq
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -160,8 +160,6 @@ class RiskManagerBot(Bot):
             hedge_time=hedge_time,
         )
 
-        # Risk management task
-        self.risk_task: asyncio.Task = None
 
     async def on_connected(self):
         """Called when connected to cTrader server."""
@@ -170,8 +168,10 @@ class RiskManagerBot(Bot):
         # Wait for authentication
         if await self.wait_for_authentication():
             logger.info("Starting risk management...")
-            # Start risk management task
-            self.risk_task = asyncio.create_task(self._risk_management_loop())
+
+            # Subscribe to spot prices for all symbols we care about
+            all_symbols = self.risk_manager.allowed_symbols
+            await self.subscribe_to_symbol_spots(all_symbols)
         else:
             logger.error("Authentication failed, risk management not started")
 
@@ -179,19 +179,14 @@ class RiskManagerBot(Bot):
         """Called when disconnected from cTrader server."""
         logger.warning(f"Disconnected: {reason}")
 
-        # Stop risk management task
-        if self.risk_task and not self.risk_task.done():
-            self.risk_task.cancel()
-
         await super().on_disconnected(reason)
 
-    async def on_tick(self, spot_event=None):
+    async def on_tick(self, message=None):
         """
         Called on every tick - this is where risk management runs.
         """
-        # Only run risk management if authenticated and connected
-        if not self.is_authenticated or not self.is_connected:
-            return
+        
+        await super().on_tick(message)
 
         try:
             # Execute risk management logic asynchronously
@@ -200,41 +195,28 @@ class RiskManagerBot(Bot):
         except Exception as e:
             logger.error(f"Error in risk management: {e}")
 
-    async def _risk_management_loop(self):
-        """
-        Background task for periodic risk management checks.
-        Runs every few seconds to ensure risk management is active.
-        """
-        try:
-            while self.is_running and self.is_connected:
-                try:
-                    if self.is_authenticated:
-                        await self.risk_manager.act_async()
-
-                except Exception as e:
-                    logger.error(f"Error in risk management loop: {e}")
-
-                # Wait before next check
-                await asyncio.sleep(5)  # Check every 5 seconds
-
-        except asyncio.CancelledError:
-            logger.info("Risk management loop cancelled")
-        except Exception as e:
-            logger.error(f"Fatal error in risk management loop: {e}")
-
     async def stop(self):
         """Stop the bot and cleanup."""
         logger.info("Stopping risk manager bot...")
 
-        # Cancel risk management task
-        if self.risk_task and not self.risk_task.done():
-            self.risk_task.cancel()
-            try:
-                await self.risk_task
-            except asyncio.CancelledError:
-                pass
-
         await super().stop()
+
+    def get_cached_spot_prices(self) -> dict:
+        """Get current cached spot prices for debugging."""
+        return self.trade_client.spot_prices_cache
+
+    def print_spot_prices_status(self):
+        """Print current spot prices cache status."""
+        cache = self.get_cached_spot_prices()
+        if not cache:
+            logger.info("📊 No spot prices cached yet")
+        else:
+            logger.info(f"📊 Cached spot prices for {len(cache)} symbols:")
+            for symbol_id, price_data in cache.items():
+                bid = price_data.get('bid', 'N/A')
+                ask = price_data.get('ask', 'N/A')
+                timestamp = price_data.get('timestamp', 'N/A')
+                logger.info(f"   Symbol ID {symbol_id}: Bid={bid}, Ask={ask}, Timestamp={timestamp}")
 
 
 class RiskManager:
@@ -384,39 +366,35 @@ class RiskManager:
             return 0.0
 
     def _calculate_position_floating_pnl(self, position) -> float:
-        """Calculate floating P&L for a single position using entry price from orders."""
+        """Calculate floating P&L for a single position using current market price and entry price."""
         try:
-            # Get current market price and other position data
-            current_price = position.price
+            # Get position data
             swap = position.swap / 100.0  # Convert from cents
             commission = position.commission / 100.0  # Convert from cents
             position_id = position.positionId
 
             # Get trade data
             trade_data = position.tradeData
-
             volume_lots = trade_data.volume / 1e7  # Convert from cents to lots
             trade_side = trade_data.tradeSide  # 1 = BUY, 2 = SELL
             symbol_id = trade_data.symbolId
 
-            # Find the entry price from orders with matching positionId
-            entry_price = self._get_position_entry_price(position_id)
+            # Get entry price from deals
+            entry_price = position.price
 
-            if entry_price == 0.0 or current_price == 0.0:
-                # Fallback to swap + commission if we can't get prices
-                logger.debug(f"Position {position_id}: No entry/current price, using swap+commission fallback")
-                return swap + commission
 
-            # Get symbol info for pip calculation
+            # Get symbol info.
             symbol_info = None
             for sym_name, sym_data in self._symbols_data.items():
                 if sym_data.get('symbolId') == symbol_id:
                     symbol_info = sym_data
                     break
-
+            
             if not symbol_info:
-                logger.debug(f"Position {position_id}: No symbol info found, using swap+commission fallback")
-                return swap + commission
+                raise ValueError(f"Symbol info not found for symbol ID {symbol_id}")
+
+            # Get current market price from trade client
+            current_price = self.get_price(symbol_id, trade_side)
 
             # Calculate price movement P&L
             # Get pip value for proper calculation
