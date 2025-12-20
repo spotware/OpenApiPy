@@ -8,7 +8,7 @@
     },
     "host_type": "demo",
     "risk_manager_config": {
-        "allowed_symbols": ["EURUSD", "GBPUSD", "USDJPY", "USDCAD", "USDCHF", "AUDUSD", "XAUUSD"],
+        "allowed_symbols": ["EURUSD"],
         "hedge_symbols": ["NZDUSD"],
         "freeze_minutes": 60,
         "max_lot_volume": 10,

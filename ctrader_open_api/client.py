@@ -193,7 +193,7 @@ class Client:
             return response
 
         except asyncio.TimeoutError:
-            logger.error(f"Request timeout for message {client_msg_id}")
+            logger.error(f"Request timeout for message {client_msg_id}. Message: {message}")
             return None
         finally:
             # Cleanup
@@ -252,7 +252,7 @@ class Client:
         """Background task to send queued messages with rate limiting."""
         try:
             while self.is_connected:
-                await asyncio.sleep(1.0)  # Check every second
+                await asyncio.sleep(0.1)  # Check every second
 
                 if not self.message_queue:
                     continue

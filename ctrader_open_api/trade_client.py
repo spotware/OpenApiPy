@@ -513,12 +513,21 @@ class TradeClient:
         request = ProtoOASubscribeSpotsReq()
         request.ctidTraderAccountId = self.account_id
 
-        for s in symbol_ids:
-            request.symbolId.append(s)
+        # for s in symbol_ids:
+        #     request.symbolId.append(s)
+
+        request.symbolId.append(41)
         request.subscribeToSpotTimestamp = include_timestamp
 
         logger.info(f"Subscribing to spots for symbols {symbol_ids}")
-        return await self.client.send_message(request, timeout=timeout)
+        result = await self.client.send_message(request, timeout=timeout)
+
+        if result:
+            logger.info("Successfully subscribed to spots")
+        else:
+            logger.error(f"Failed to subscribe to spots for symbols {symbol_ids}")
+        
+        return result
 
     async def unsubscribe_from_spots(self, symbol_ids: List[int], timeout: int = 10):
         """
