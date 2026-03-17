@@ -19,16 +19,16 @@ include = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.9.2"
 Twisted = ">=24.7.0,<26"
-pyOpenSSL = ">=24.3.0,<26"
+pyOpenSSL = ">=26.0.0,<27"
 protobuf = ">=5.29.6,<7"
 requests = ">=2.32.4,<3"
 inputimeout = ">=1.0.4,<2"
 
 [tool.poetry.dev-dependencies]
 Twisted = ">=24.7.0,<26"
-pyOpenSSL = ">=24.3.0,<26"
+pyOpenSSL = ">=26.0.0,<27"
 protobuf = ">=5.29.6,<7"
 requests = ">=2.32.4,<3"
 inputimeout = ">=1.0.4,<2"
